@@ -29,6 +29,7 @@ export default function Page() {
   const [direction, setDirection] = useState<string>("");
   const [slideCount, setSlideCount] = useState<number>(2);
   const [editPrompt, setEditPrompt] = useState<string>("");
+  const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isImproving, setIsImproving] = useState<boolean>(false);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
@@ -38,6 +39,8 @@ export default function Page() {
   const [modalImageUrl, setModalImageUrl] = useState<string>("");
   const [isCapturingForModal, setIsCapturingForModal] = useState<boolean>(false);
   const [isEditingSlide, setIsEditingSlide] = useState<boolean>(false);
+  const [hasRunOnce, setHasRunOnce] = useState<boolean>(false);
+  const [isHtmlEditorOpen, setIsHtmlEditorOpen] = useState<boolean>(false);
   const recaptureTimeoutRef = useRef<number | null>(null);
   type HistoryEntry = { id: string; html: string; prompt?: string; label?: string; timestamp: number };
   const [slideHistories, setSlideHistories] = useState<Record<number, HistoryEntry[]>>({});
@@ -219,6 +222,7 @@ export default function Page() {
       if (!html) throw new Error("Empty response from model");
       setHtmlContent(html);
       toast.success("Generated 2 slides");
+      setHasRunOnce(true);
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Generation failed");
@@ -293,6 +297,58 @@ export default function Page() {
     setModalImageUrl("");
     if (typeof document !== "undefined") {
       document.documentElement.style.overflow = "";
+    }
+  };
+
+  const applySlideEdit = async (): Promise<void> => {
+    if (!editPrompt.trim() || isEditingSlide || activeModalIndex === null) return;
+    try {
+      setIsEditingSlide(true);
+      const index = activeModalIndex;
+      const slideHtml = slides[index] || "";
+      let images: { src: string; alt?: string; prompt?: string }[] = [];
+      const handle = slideRefs.current[index];
+      const iframe = handle?.getIframe();
+      const doc = iframe?.contentDocument || null;
+      if (doc) {
+        const containers = Array.from(doc.querySelectorAll(".ai-image")) as HTMLElement[];
+        for (const el of containers) {
+          const img = el.querySelector("img") as HTMLImageElement | null;
+          if (img && img.src?.startsWith("data:")) {
+            images.push({
+              src: img.src,
+              alt: img.alt || undefined,
+              prompt: el.getAttribute("data-prompt") || undefined,
+            });
+          }
+        }
+      }
+      const res = await fetch("/api/edit-slide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slideHtml, instruction: editPrompt, direction, images }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to edit slide");
+      const updated = String(data.html || "");
+      const nextSlides = [...slides];
+      nextSlides[index] = updated;
+      setHtmlContent(nextSlides.join("\n\n---\n\n"));
+      addHistory(index, updated, editPrompt, "Edit");
+      setEditPrompt("");
+      setTimeout(async () => {
+        const handle2 = slideRefs.current[index];
+        if (handle2) {
+          const url = await handle2.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
+          setModalImageUrl(url);
+        }
+      }, 250);
+      toast.success("Slide updated");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Edit failed");
+    } finally {
+      setIsEditingSlide(false);
     }
   };
 
@@ -380,6 +436,7 @@ export default function Page() {
       if (!html) throw new Error("Empty response from model");
       setHtmlContent(html);
       toast.success("Improved slides with image context");
+      setHasRunOnce(true);
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Improve failed");
@@ -398,7 +455,7 @@ export default function Page() {
             <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 via-white to-sky-400 bg-clip-text text-transparent">
               TikTok Slideshow Generator
             </h1>
-            <p className="text-zinc-400 mt-1">Generate AI-powered slides • Markdown → 1080x1920 export</p>
+            <p className="text-zinc-400 mt-1">Generate TikTok Slides → 1080x1920 export</p>
           </div>
           <div className="flex gap-3">
             <Button
@@ -470,18 +527,29 @@ export default function Page() {
               </div>
               <div className="flex items-center gap-3 pt-2">
                 <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
+                  onClick={async () => {
+                    if (!hasRunOnce) {
+                      await handleGenerate();
+                    } else if (slides.length === 0) {
+                      await handleGenerate();
+                    } else {
+                      await handleImprove();
+                    }
+                  }}
+                  disabled={isGenerating || isImproving}
                   className="bg-gradient-to-r from-red-600 to-sky-600 hover:from-red-700 hover:to-sky-700 text-white border-0 flex-1"
                 >
-                  {isGenerating ? "Generating…" : "Go viral!"}
-                </Button>
-                <Button
-                  onClick={handleImprove}
-                  disabled={isImproving || slides.length === 0}
-                  className="bg-zinc-700 hover:bg-zinc-600 text-white border-0"
-                >
-                  {isImproving ? "Improving…" : "🪄 Improve with images"}
+                  {!hasRunOnce
+                    ? isGenerating
+                      ? "Generating…"
+                      : "Go viral!"
+                    : slides.length === 0
+                    ? isGenerating
+                      ? "Generating…"
+                      : "Generate"
+                    : isImproving
+                    ? "Improving…"
+                    : "Improve"}
                 </Button>
                 <Button
                   variant="outline"
@@ -489,7 +557,7 @@ export default function Page() {
                     setPrompt("");
                     setDirection("");
                   }}
-                  className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                  className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-200 bg-zinc-700"
                 >
                   Clear
                 </Button>
@@ -497,24 +565,33 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700 rounded-xl p-6">
-            <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-400 rounded-full"></span>
-              HTML Editor
-            </h2>
-            <div className="space-y-3">
-              <Textarea
-                id="html"
-                value={htmlContent}
-                onChange={e => setHtmlContent(e.target.value)}
-                className="min-h-[420px] bg-zinc-800 border-zinc-600 text-white placeholder:text-zinc-400 focus:border-sky-500 focus:ring-sky-500 font-mono text-sm"
-                placeholder="<h1>Slide title</h1>\n<p>Your content here...</p>\n\n---\n\n<h2>Next slide</h2>"
-              />
-              <p className="text-xs text-zinc-400">
-                💡 <strong>Tip:</strong> Use semantic HTML (h1, h2, p, strong, em). Special classes: "highlight", "cta",
-                "image-placeholder".
-              </p>
-            </div>
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700 rounded-xl">
+            <button
+              onClick={() => setIsHtmlEditorOpen(v => !v)}
+              className="w-full flex items-center justify-between px-6 py-4"
+              aria-expanded={isHtmlEditorOpen}
+            >
+              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                HTML Editor
+              </h2>
+              <span className="text-zinc-400 text-sm">{isHtmlEditorOpen ? "Collapse" : "Expand"}</span>
+            </button>
+            {isHtmlEditorOpen && (
+              <div className="space-y-3 p-6 pt-0">
+                <Textarea
+                  id="html"
+                  value={htmlContent}
+                  onChange={e => setHtmlContent(e.target.value)}
+                  className="min-h-[420px] bg-zinc-800 border-zinc-600 text-white placeholder:text-zinc-400 focus:border-sky-500 focus:ring-sky-500 font-mono text-sm"
+                  placeholder="<h1>Slide title</h1>\n<p>Your content here...</p>\n\n---\n\n<h2>Next slide</h2>"
+                />
+                <p className="text-xs text-zinc-400">
+                  💡 <strong>Tip:</strong> Use semantic HTML (h1, h2, p, strong, em). Special classes: "highlight",
+                  "cta", "image-placeholder".
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -576,7 +653,7 @@ export default function Page() {
                       variant="outline"
                       size="sm"
                       onClick={() => setExportPreviews([])}
-                      className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                      className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-200"
                     >
                       Clear
                     </Button>
@@ -613,7 +690,7 @@ export default function Page() {
           aria-modal="true"
           onClick={closeModal}
         >
-          <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="relative w-[92vw] max-w-[1400px] max-h-[92vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3 px-1">
               <div className="flex items-center gap-3">
                 <h3 className="text-white text-lg font-medium">Slide {activeModalIndex + 1}</h3>
@@ -621,173 +698,121 @@ export default function Page() {
               </div>
               <button
                 onClick={closeModal}
-                className="px-4 py-2 rounded-lg bg-slate-800/80 backdrop-blur text-white border border-slate-600 hover:bg-slate-700/80 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-slate-800/80 backdrop-blur text-white border border-slate-600 hover:bg-slate-700/80 transition-colors"
               >
                 Close
               </button>
             </div>
-            <div className="relative rounded-xl border border-slate-600 bg-slate-900/50 backdrop-blur shadow-2xl overflow-hidden flex items-center justify-center min-h-[40vh]">
-              {!modalImageUrl ? (
-                <div className="flex items-center gap-3 text-slate-300">
-                  <svg className="animate-spin h-5 w-5 text-slate-300" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                  <span>Loading preview…</span>
+            <div className="grid grid-cols-[300px_1fr] gap-4">
+              {/* Sidebar History */}
+              <aside className="rounded-xl border border-zinc-700 bg-zinc-900/60 overflow-hidden flex flex-col min-h-[60vh]">
+                <div className="px-3 py-2 border-b border-zinc-700 bg-zinc-900/70">
+                  <div className="text-zinc-200 text-sm font-medium">History</div>
+                  <div className="text-zinc-500 text-xs">{slideHistories[activeModalIndex]?.length || 0} versions</div>
                 </div>
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={modalImageUrl}
-                  alt={`Slide ${activeModalIndex + 1}`}
-                  className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
-                  style={{ aspectRatio: "1080/1920" }}
-                />
-              )}
-              {(isCapturingForModal || isEditingSlide) && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <div className="flex items-center gap-2 text-white text-sm">
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                        fill="none"
-                      />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                    <span>{isEditingSlide ? "Applying edit…" : "Rendering…"}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="mt-4 flex items-center gap-2">
-              <Input
-                placeholder="Describe how to edit this slide..."
-                value={editPrompt}
-                onChange={e => setEditPrompt(e.target.value)}
-                className="flex-1 bg-slate-700 border-slate-600 text-white"
-              />
-              <Button
-                disabled={!editPrompt.trim() || isEditingSlide}
-                onClick={async () => {
-                  try {
-                    setIsEditingSlide(true);
-                    const slideHtml = slides[activeModalIndex!] || "";
-                    // Collect current inline images as context
-                    let images: { src: string; alt?: string; prompt?: string }[] = [];
-                    const handle = slideRefs.current[activeModalIndex!];
-                    const iframe = handle?.getIframe();
-                    const doc = iframe?.contentDocument || null;
-                    if (doc) {
-                      const containers = Array.from(doc.querySelectorAll(".ai-image")) as HTMLElement[];
-                      for (const el of containers) {
-                        const img = el.querySelector("img") as HTMLImageElement | null;
-                        if (img && img.src?.startsWith("data:")) {
-                          images.push({
-                            src: img.src,
-                            alt: img.alt || undefined,
-                            prompt: el.getAttribute("data-prompt") || undefined,
-                          });
-                        }
-                      }
-                    }
-                    const res = await fetch("/api/edit-slide", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ slideHtml, instruction: editPrompt, direction, images }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data?.error || "Failed to edit slide");
-                    const updated = String(data.html || "");
-                    const nextSlides = [...slides];
-                    nextSlides[activeModalIndex!] = updated;
-                    setHtmlContent(nextSlides.join("\n\n---\n\n"));
-                    addHistory(activeModalIndex!, updated, editPrompt, "Edit");
-                    setEditPrompt("");
-                    // recapture after slight delay to allow iframe render
-                    setTimeout(async () => {
-                      const handle = slideRefs.current[activeModalIndex!];
-                      if (handle) {
-                        const url = await handle.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
-                        setModalImageUrl(url);
-                      }
-                    }, 250);
-                    toast.success("Slide updated");
-                  } catch (e: any) {
-                    console.error(e);
-                    toast.error(e?.message || "Edit failed");
-                  } finally {
-                    setIsEditingSlide(false);
-                  }
-                }}
-                className="bg-violet-600 hover:bg-violet-700 text-white"
-              >
-                {isEditingSlide ? "Applying…" : "Apply Edit"}
-              </Button>
-            </div>
-            {/* History */}
-            {activeModalIndex !== null && (slideHistories[activeModalIndex]?.length || 0) > 0 && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-slate-300 text-sm font-medium">History</h4>
-                  <span className="text-slate-500 text-xs">{slideHistories[activeModalIndex]!.length} versions</span>
-                </div>
-                <div className="max-h-48 overflow-auto rounded-md border border-slate-700 divide-y divide-slate-700 bg-slate-900/50">
-                  {slideHistories[activeModalIndex]!.map((entry, idx) => ({ entry, idx }))
+                <div className="flex-1 overflow-auto divide-y divide-zinc-800">
+                  {(slideHistories[activeModalIndex] || [])
+                    .map((entry, idx) => ({ entry, idx }))
                     .reverse()
                     .map(({ entry, idx }) => (
-                      <div key={entry.id} className="flex items-center justify-between px-3 py-2">
-                        <div className="min-w-0">
-                          <div className="text-slate-200 text-xs font-medium truncate">
-                            {entry.label || `v${idx + 1}`}
-                          </div>
-                          <div className="text-slate-500 text-[10px] truncate">
-                            {new Date(entry.timestamp).toLocaleTimeString()} {entry.prompt ? `• ${entry.prompt}` : ""}
-                          </div>
+                      <button
+                        key={entry.id}
+                        className="w-full text-left px-3 py-2 hover:bg-zinc-800/60"
+                        onClick={async () => {
+                          const index = activeModalIndex!;
+                          const versionHtml = entry.html;
+                          const nextSlides = [...slides];
+                          nextSlides[index] = versionHtml;
+                          setHtmlContent(nextSlides.join("\n\n---\n\n"));
+                          setTimeout(async () => {
+                            const handle = slideRefs.current[index];
+                            if (handle) {
+                              const url = await handle.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
+                              setModalImageUrl(url);
+                            }
+                          }, 250);
+                        }}
+                        title={entry.prompt || entry.label || `v${idx + 1}`}
+                      >
+                        <div className="text-zinc-200 text-xs font-medium truncate">{entry.label || `v${idx + 1}`}</div>
+                        <div className="text-zinc-500 text-[10px] truncate">
+                          {new Date(entry.timestamp).toLocaleTimeString()} {entry.prompt ? `• ${entry.prompt}` : ""}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1"
-                            onClick={async () => {
-                              const index = activeModalIndex!;
-                              const versionHtml = entry.html;
-                              const nextSlides = [...slides];
-                              nextSlides[index] = versionHtml;
-                              setHtmlContent(nextSlides.join("\n\n---\n\n"));
-                              setTimeout(async () => {
-                                const handle = slideRefs.current[index];
-                                if (handle) {
-                                  const url = await handle.capturePng({
-                                    width: 1080,
-                                    height: 1920,
-                                    engine: "html2canvas",
-                                  });
-                                  setModalImageUrl(url);
-                                }
-                              }, 250);
-                            }}
-                          >
-                            Restore
-                          </Button>
-                        </div>
-                      </div>
+                      </button>
                     ))}
                 </div>
+              </aside>
+              {/* Main preview + edit */}
+              <div className="flex flex-col">
+                <div className="relative rounded-xl border border-slate-600 bg-slate-900/50 backdrop-blur shadow-2xl overflow-hidden flex items-center justify-center min-h-[40vh]">
+                  {!modalImageUrl ? (
+                    <div className="flex items-center gap-3 text-slate-300">
+                      <svg className="animate-spin h-5 w-5 text-slate-300" viewBox="0 0 24 24">
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      <span>Loading preview…</span>
+                    </div>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={modalImageUrl}
+                      alt={`Slide ${activeModalIndex + 1}`}
+                      className="block max-w-full max-h-[72vh] w-auto h-auto object-contain"
+                      style={{ aspectRatio: "1080/1920" }}
+                    />
+                  )}
+                  {(isCapturingForModal || isEditingSlide) && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="flex items-center gap-2 text-white text-sm">
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                        </svg>
+                        <span>{isEditingSlide ? "Applying edit…" : "Rendering…"}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <Input
+                    placeholder="Describe how to edit this slide..."
+                    value={editPrompt}
+                    onChange={e => setEditPrompt(e.target.value)}
+                    onKeyDown={async e => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        await applySlideEdit();
+                      }
+                    }}
+                    className="flex-1 bg-slate-700 border-slate-600 text-white"
+                  />
+                  <Button
+                    disabled={!editPrompt.trim() || isEditingSlide}
+                    onClick={applySlideEdit}
+                    className="bg-violet-600 hover:bg-violet-700 text-white"
+                  >
+                    {isEditingSlide ? "Applying…" : "Apply Edit"}
+                  </Button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
