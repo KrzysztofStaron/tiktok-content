@@ -10,7 +10,7 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
 
-const DEFAULT_HTML = `<h1>Hook your audience in <span class="highlight">3 seconds</span></h1>
+const DEFAULT_HTML = `<h1>Hook your audience in  <br /> <span class="highlight">3 seconds</span></h1>
 <p>Write a <em>bold claim</em> and a <strong>short supporting</strong> line.</p>
 
 ---
@@ -41,6 +41,7 @@ export default function Page() {
   const [isEditingSlide, setIsEditingSlide] = useState<boolean>(false);
   const [hasRunOnce, setHasRunOnce] = useState<boolean>(false);
   const [isHtmlEditorOpen, setIsHtmlEditorOpen] = useState<boolean>(false);
+  const [isGeneratingImages, setIsGeneratingImages] = useState<boolean>(false);
   const recaptureTimeoutRef = useRef<number | null>(null);
   type HistoryEntry = { id: string; html: string; prompt?: string; label?: string; timestamp: number };
   const [slideHistories, setSlideHistories] = useState<Record<number, HistoryEntry[]>>({});
@@ -334,21 +335,60 @@ export default function Page() {
       const nextSlides = [...slides];
       nextSlides[index] = updated;
       setHtmlContent(nextSlides.join("\n\n---\n\n"));
-      addHistory(index, updated, editPrompt, "Edit");
+      addHistory(index, updated, editPrompt);
       setEditPrompt("");
-      setTimeout(async () => {
+      // Wait for images in the iframe to finish generating by polling for <img> nodes inside .ai-image
+      const waitForImages = async () => {
+        const handle2 = slideRefs.current[index];
+        const iframe = handle2?.getIframe();
+        const doc = iframe?.contentDocument || null;
+        if (!doc) return;
+        const deadline = Date.now() + 15000; // up to 15s
+        // consider done when every .ai-image has either an <img> child or shows an error message
+        const isDone = () => {
+          const containers = Array.from(doc.querySelectorAll(".ai-image")) as HTMLElement[];
+          if (containers.length === 0) return true;
+          return containers.every(el => {
+            const hasImg = !!el.querySelector("img");
+            const text = (el.textContent || "").toLowerCase();
+            const errored = text.includes("error") || text.includes("failed");
+            return hasImg || errored;
+          });
+        };
+        const containers = Array.from(doc.querySelectorAll(".ai-image")) as HTMLElement[];
+        if (containers.length === 0) {
+          setIsGeneratingImages(false);
+          return;
+        }
+        const hasPendingAtStart = containers.some(el => {
+          const hasImg = !!el.querySelector("img");
+          const text = (el.textContent || "").toLowerCase();
+          const errored = text.includes("error") || text.includes("failed");
+          return !hasImg && !errored;
+        });
+        setIsGeneratingImages(hasPendingAtStart);
+        if (!hasPendingAtStart) return;
+        while (!isDone() && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 300));
+        }
+        setIsGeneratingImages(false);
+      };
+      await waitForImages();
+      // recapture preview after images are ready
+      try {
         const handle2 = slideRefs.current[index];
         if (handle2) {
           const url = await handle2.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
           setModalImageUrl(url);
         }
-      }, 250);
+      } catch {}
       toast.success("Slide updated");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Edit failed");
     } finally {
       setIsEditingSlide(false);
+      setIsGeneratingImages(false);
     }
   };
 
@@ -785,32 +825,38 @@ export default function Page() {
                           />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                         </svg>
-                        <span>{isEditingSlide ? "Applying edit…" : "Rendering…"}</span>
+                        <span>
+                          {isEditingSlide
+                            ? isGeneratingImages
+                              ? "Generating images…"
+                              : "Applying edit…"
+                            : "Rendering…"}
+                        </span>
                       </div>
                     </div>
                   )}
                 </div>
-                <div className="mt-4 flex items-center gap-2">
+                <form
+                  className="mt-4 flex items-center gap-2"
+                  onSubmit={async e => {
+                    e.preventDefault();
+                    await applySlideEdit();
+                  }}
+                >
                   <Input
                     placeholder="Describe how to edit this slide..."
                     value={editPrompt}
                     onChange={e => setEditPrompt(e.target.value)}
-                    onKeyDown={async e => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        await applySlideEdit();
-                      }
-                    }}
                     className="flex-1 bg-slate-700 border-slate-600 text-white"
                   />
                   <Button
+                    type="submit"
                     disabled={!editPrompt.trim() || isEditingSlide}
-                    onClick={applySlideEdit}
                     className="bg-violet-600 hover:bg-violet-700 text-white"
                   >
-                    {isEditingSlide ? "Applying…" : "Apply Edit"}
+                    {isEditingSlide ? (isGeneratingImages ? "Generating images…" : "Applying…") : "Apply Edit"}
                   </Button>
-                </div>
+                </form>
               </div>
             </div>
           </div>
