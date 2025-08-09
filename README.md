@@ -1,49 +1,72 @@
-TikTok Slideshow Generator (Markdown → 1080×1920)
+### TikTok Slideshow Generator
 
-- Paste Markdown, split slides with a line containing only `---`.
-- Preview slides and export all as a ZIP of 1080×1920 PNGs.
+Generate and iterate vertical TikTok slideshow slides (1080×1920) with AI. Export crisp PNGs as a ZIP.
 
-Tech: Next.js App Router, Tailwind CSS v4, shadcn-style UI, Radix, React Query, Sonner.
+### Screenshots
 
-Scripts
+![Editor and preview](./public/ss1.png)
 
-- pnpm dev
-- pnpm build
-- pnpm start
+![Modal and history](./public/ss2)
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+### Features
 
-## Getting Started
+- AI generate slides from a topic and optional direction/style
+- One primary CTA that generates first, then improves existing slides
+- Slide-level editing with image context and version history
+- HTML editor (collapsible by default)
+- 1080×1920 PNG export as a ZIP
 
-First, run the development server:
+### Stack
+
+- Next.js App Router (React 19, Server + Client components)
+- TypeScript, Tailwind CSS v4, shadcn components (Radix UI under the hood)
+- Sonner toasts
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm 9+
+- An OpenRouter API key
+
+Create `.env.local` in the project root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+OPENROUTER_API_KEY=your_api_key_here
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Install & Run
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm install
+pnpm dev
+# build: pnpm build
+# start (prod): pnpm start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Visit `http://localhost:3000`.
 
-## Learn More
+### Usage
 
-To learn more about Next.js, take a look at the following resources:
+- Enter a topic and optional direction, choose slide count, then click the primary CTA
+- First run shows “Go viral!” and generates slides; subsequent clicks improve the current slides
+- Click a slide to open the modal, type an edit instruction, press Enter (or click Apply) to update
+- Export ZIP to download all slides as 1080×1920 PNGs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### API Endpoints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `POST /api/generate`: creates slides. Returns `{ html }` where slides are separated with `---`
+- `POST /api/improve`: improves slides (optionally with captured inline image previews)
+- `POST /api/edit-slide`: edits a single slide with instruction and optional images
+- `POST /api/image`: generates an image for `<div class="ai-image" data-prompt ...>` placeholders
 
-## Deploy on Vercel
+All responses are sanitized on the server. Prompts enforce vertical portrait and allow inline styles only if explicitly requested by the user.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/page.tsx`: UI, preview grid, modal editor, export
+- `app/api/*`: server routes for generate, improve, edit-slide, image
+- `components/SlideRenderer.tsx`: sandboxed iframe renderer and PNG capture
+
+### License
+
+MIT
