@@ -6,6 +6,7 @@ import { toPng } from "html-to-image";
 interface SlideRendererProps {
   html: string;
   scale?: number;
+  onContentChanged?: () => void;
 }
 
 type CaptureOptions = {
@@ -21,7 +22,8 @@ export type SlideRendererHandle = {
   getIframe: () => HTMLIFrameElement | null;
 };
 
-export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>(({ html, scale = 0.25 }, ref) => {
+export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>(
+  ({ html, scale = 0.25, onContentChanged }, ref) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -185,6 +187,18 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
     doc.write(fullHtml);
     doc.close();
 
+    // Notify parent shortly after initial render completes
+    try {
+      const win = iframe.contentWindow as Window | null;
+      if (win && typeof win.requestAnimationFrame === "function") {
+        win.requestAnimationFrame(() => {
+          win.requestAnimationFrame(() => onContentChanged?.());
+        });
+      } else {
+        setTimeout(() => onContentChanged?.(), 50);
+      }
+    } catch {}
+
     // After mount, find any ai-image nodes and fetch images
     const loadImages = async () => {
       const aiNodes = (doc.querySelectorAll(".ai-image") || []) as unknown as HTMLElement[];
@@ -223,13 +237,16 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
             img.style.margin = "24px auto";
             el.innerHTML = "";
             el.appendChild(img);
+            onContentChanged?.();
           } else {
             el.textContent = "Image generation failed";
+            onContentChanged?.();
           }
         } catch (e) {
           // If another request started meanwhile, ignore this result
           if (el.getAttribute("data-req-id") !== reqId) continue;
           el.textContent = "Image generation error";
+          onContentChanged?.();
         }
       }
     };

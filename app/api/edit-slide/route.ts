@@ -5,11 +5,12 @@ type Body = {
   instruction: string;
   direction?: string;
   model?: string;
+  images?: { src: string; alt?: string; prompt?: string }[];
 };
 
 export async function POST(req: NextRequest) {
   try {
-    const { slideHtml, instruction, direction, model }: Body = await req.json();
+    const { slideHtml, instruction, direction, model, images = [] }: Body = await req.json();
     if (!slideHtml || !instruction) {
       return NextResponse.json({ error: "Missing slideHtml or instruction" }, { status: 400 });
     }
@@ -32,12 +33,21 @@ Rules:
 - Keep wording concise, wrap naturally, avoid type tokens like string/number/boolean
 `;
 
-    const user = [
-      { type: "text", text: direction ? `Direction: ${direction}` : "" },
-      { type: "text", text: `Instruction: ${instruction}` },
-      { type: "text", text: `Current slide HTML:` },
-      { type: "text", text: slideHtml },
-    ].filter(p => (p as any).text);
+    const parts: any[] = [];
+    if (direction) parts.push({ type: "text", text: `Direction: ${direction}` });
+    parts.push({ type: "text", text: `Instruction: ${instruction}` });
+    parts.push({ type: "text", text: `Current slide HTML:` });
+    parts.push({ type: "text", text: slideHtml });
+    if (Array.isArray(images) && images.length) {
+      parts.push({ type: "text", text: `\nImage context (${images.length}):` });
+      images.forEach((img, i) => {
+        const caption = `Image ${i + 1}${img.prompt ? ` (prompt: ${img.prompt})` : ""}${
+          img.alt ? ` (alt: ${img.alt})` : ""
+        }`;
+        parts.push({ type: "text", text: caption });
+        parts.push({ type: "image_url", image_url: { url: img.src } });
+      });
+    }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -46,7 +56,7 @@ Rules:
         model: model || "openai/gpt-5-mini",
         messages: [
           { role: "system", content: system },
-          { role: "user", content: user },
+          { role: "user", content: parts },
         ],
         temperature: 0.7,
         response_format: { type: "json_object" },

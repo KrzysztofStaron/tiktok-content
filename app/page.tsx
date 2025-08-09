@@ -37,6 +37,7 @@ export default function Page() {
   const [activeModalIndex, setActiveModalIndex] = useState<number | null>(null);
   const [modalImageUrl, setModalImageUrl] = useState<string>("");
   const [isCapturingForModal, setIsCapturingForModal] = useState<boolean>(false);
+  const [isEditingSlide, setIsEditingSlide] = useState<boolean>(false);
 
   // Ensure iframe content is fully laid out (fonts/styles) before rasterizing
   const waitForIframeReady = async (iframe: HTMLIFrameElement) => {
@@ -159,6 +160,8 @@ export default function Page() {
   // Modal helpers
   const openModal = async (index: number) => {
     setActiveModalIndex(index);
+    setModalImageUrl("");
+    setIsModalOpen(true); // open immediately for instant feedback
     setIsCapturingForModal(true);
     try {
       const handle = slideRefs.current[index];
@@ -171,7 +174,6 @@ export default function Page() {
           engine: "html2canvas",
         });
         setModalImageUrl(dataUrl);
-        setIsModalOpen(true);
         if (typeof document !== "undefined") {
           document.documentElement.style.overflow = "hidden";
         }
@@ -522,14 +524,51 @@ export default function Page() {
                 Close
               </button>
             </div>
-            <div className="rounded-xl border border-slate-600 bg-slate-900/50 backdrop-blur shadow-2xl overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={modalImageUrl}
-                alt={`Slide ${activeModalIndex + 1}`}
-                className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
-                style={{ aspectRatio: "1080/1920" }}
-              />
+            <div className="relative rounded-xl border border-slate-600 bg-slate-900/50 backdrop-blur shadow-2xl overflow-hidden flex items-center justify-center min-h-[40vh]">
+              {!modalImageUrl ? (
+                <div className="flex items-center gap-3 text-slate-300">
+                  <svg className="animate-spin h-5 w-5 text-slate-300" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  <span>Loading preview…</span>
+                </div>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={modalImageUrl}
+                  alt={`Slide ${activeModalIndex + 1}`}
+                  className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
+                  style={{ aspectRatio: "1080/1920" }}
+                />
+              )}
+              {(isCapturingForModal || isEditingSlide) && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-white text-sm">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    <span>{isEditingSlide ? "Applying edit…" : "Rendering…"}</span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-4 flex items-center gap-2">
               <Input
@@ -539,9 +578,10 @@ export default function Page() {
                 className="flex-1 bg-slate-700 border-slate-600 text-white"
               />
               <Button
-                disabled={!editPrompt.trim()}
+                disabled={!editPrompt.trim() || isEditingSlide}
                 onClick={async () => {
                   try {
+                    setIsEditingSlide(true);
                     const slideHtml = slides[activeModalIndex!] || "";
                     const res = await fetch("/api/edit-slide", {
                       method: "POST",
@@ -567,11 +607,13 @@ export default function Page() {
                   } catch (e: any) {
                     console.error(e);
                     toast.error(e?.message || "Edit failed");
+                  } finally {
+                    setIsEditingSlide(false);
                   }
                 }}
                 className="bg-violet-600 hover:bg-violet-700 text-white"
               >
-                Apply Edit
+                {isEditingSlide ? "Applying…" : "Apply Edit"}
               </Button>
             </div>
           </div>
