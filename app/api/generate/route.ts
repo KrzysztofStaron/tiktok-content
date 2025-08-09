@@ -20,12 +20,16 @@ export async function POST(req: NextRequest) {
     }
 
     const system = [
-      "You generate exactly 2 vertical video slides as Markdown.",
+      "You generate exactly 2 vertical video slides as HTML content.",
+      "Each slide should be a complete HTML structure with inline CSS styling.",
       "Separate slides with a line that contains only ---.",
-      "Prefer short, punchy text suitable for on-screen reading.",
-      "If you include an image, use standard Markdown: ![alt](image description only)",
-      "Do NOT include real URLs in image links; the () should contain the natural language description only.",
-      "Avoid code fences. Output only the raw Markdown for the 2 slides.",
+      "Use modern, beautiful styling with gradients, bold text, and engaging layouts.",
+      "Prefer short, punchy text suitable for TikTok/social media.",
+      "Use semantic HTML with proper typography hierarchy (h1, h2, p, strong, em).",
+      "Style text with vibrant colors, gradients, and modern fonts.",
+      "If you include images, use placeholder divs with descriptive text instead of actual img tags.",
+      "Make slides visually striking with good contrast and modern design.",
+      "Each slide should be self-contained HTML that renders beautifully on a black background.",
     ].join(" \n");
 
     const userContent = [
@@ -60,12 +64,12 @@ export async function POST(req: NextRequest) {
     }
 
     const data = (await response.json()) as any;
-    const markdown: string | undefined = data?.choices?.[0]?.message?.content;
-    if (!markdown) {
+    const html: string | undefined = data?.choices?.[0]?.message?.content;
+    if (!html) {
       return NextResponse.json({ error: "No content returned from model" }, { status: 502 });
     }
 
-    return NextResponse.json({ markdown });
+    return NextResponse.json({ html });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Unknown error" }, { status: 500 });
   }

@@ -4,37 +4,55 @@ import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { SlideFrame } from "@/components/SlideFrame";
+import { SlideHTML } from "@/components/SlideHTML";
 import { toPng } from "html-to-image";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
 
-const DEFAULT_MD = `# Hook your audience in 3 seconds
-Write a bold claim and a short supporting line.
+const DEFAULT_HTML = `<div style="text-align: center; padding: 40px; color: white; font-family: system-ui, -apple-system, sans-serif;">
+  <h1 style="font-size: 4rem; font-weight: bold; background: linear-gradient(45deg, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem;">
+    Hook your audience in <strong>3 seconds</strong>
+  </h1>
+  <p style="font-size: 2rem; color: #d1d5db; line-height: 1.4;">
+    Write a <em style="color: #a78bfa;">bold claim</em> and a <strong style="color: #f472b6;">short supporting</strong> line.
+  </p>
+</div>
 
 ---
 
-# Show, don't tell
-![Laptop mock](https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=1200&auto=format&fit=crop)
+<div style="text-align: center; padding: 40px; color: white; font-family: system-ui, -apple-system, sans-serif;">
+  <h1 style="font-size: 4rem; font-weight: bold; color: #fbbf24; margin-bottom: 2rem;">
+    Show, don't tell
+  </h1>
+  <div style="width: 600px; height: 300px; background: linear-gradient(135deg, #374151, #6b7280); border: 3px solid #9ca3af; border-radius: 16px; margin: 2rem auto; display: flex; align-items: center; justify-content: center; color: #d1d5db; font-size: 1.5rem;">
+    💻 Laptop mockup visualization
+  </div>
+</div>
 
 ---
 
-# End with a clear CTA
-Add your call to action and a link or handle.`;
+<div style="text-align: center; padding: 40px; color: white; font-family: system-ui, -apple-system, sans-serif;">
+  <h1 style="font-size: 4rem; font-weight: bold; background: linear-gradient(45deg, #10b981, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem;">
+    End with a <strong>clear CTA</strong>
+  </h1>
+  <p style="font-size: 2rem; color: #d1d5db; line-height: 1.4;">
+    Add your <em style="color: #34d399;">call to action</em> and a <strong style="color: #60a5fa;">link or handle</strong>.
+  </p>
+</div>`;
 
 export default function Page() {
-  const [markdown, setMarkdown] = useState<string>(DEFAULT_MD);
+  const [htmlContent, setHtmlContent] = useState<string>(DEFAULT_HTML);
   const [prompt, setPrompt] = useState<string>("");
   const [direction, setDirection] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   const slides = useMemo(() => {
-    return markdown
+    return htmlContent
       .split(/\n\s*---\s*\n/gm)
       .map(s => s.trim())
       .filter(Boolean);
-  }, [markdown]);
+  }, [htmlContent]);
 
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
   slideRefs.current = Array(slides.length)
@@ -43,7 +61,7 @@ export default function Page() {
 
   const handleExportAll = async () => {
     if (!slides.length) {
-      toast("Nothing to export. Add some Markdown.");
+      toast("Nothing to export. Add some HTML content.");
       return;
     }
 
@@ -59,7 +77,8 @@ export default function Page() {
           height: 1920,
           pixelRatio: 1,
           cacheBust: true,
-          skipFonts: true,
+          skipFonts: false,
+          backgroundColor: "#000000",
         });
         const base64 = dataUrl.split(",")[1];
         const index = (i + 1).toString().padStart(2, "0");
@@ -91,9 +110,9 @@ export default function Page() {
       if (!res.ok) {
         throw new Error(data?.error || "Failed to generate");
       }
-      const md = String(data.markdown || "").trim();
-      if (!md) throw new Error("Empty response from model");
-      setMarkdown(md);
+      const html = String(data.html || "").trim();
+      if (!html) throw new Error("Empty response from model");
+      setHtmlContent(html);
       toast.success("Generated 2 slides");
     } catch (e: any) {
       console.error(e);
@@ -183,20 +202,19 @@ export default function Page() {
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
               <span className="w-2 h-2 bg-pink-400 rounded-full"></span>
-              Markdown Editor
+              HTML Editor
             </h2>
             <div className="space-y-3">
               <Textarea
-                id="md"
-                value={markdown}
-                onChange={e => setMarkdown(e.target.value)}
+                id="html"
+                value={htmlContent}
+                onChange={e => setHtmlContent(e.target.value)}
                 className="min-h-[420px] bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus:border-violet-500 focus:ring-violet-500 font-mono text-sm"
-                placeholder="# Slide title\nYour content here...\n\n---\n\n# Next slide"
+                placeholder="<div>Your HTML content here...</div>\n\n---\n\n<div>Next slide</div>"
               />
               <p className="text-xs text-slate-400">
-                💡 <strong>Tip:</strong> Add images with{" "}
-                <code className="bg-slate-700 px-1 py-0.5 rounded text-violet-300">![alt](description)</code> for DALL·E
-                generation, or paste URLs for real images.
+                💡 <strong>Tip:</strong> Use full HTML with inline CSS for rich formatting, gradients, and modern
+                styling.
               </p>
             </div>
           </div>
@@ -212,27 +230,30 @@ export default function Page() {
               <div className="rounded-xl border border-slate-600 bg-slate-700/30 p-12 text-center">
                 <div className="text-slate-400 text-lg mb-2">🎬</div>
                 <p className="text-slate-400">Your slides preview will appear here</p>
-                <p className="text-slate-500 text-sm mt-1">Generate with AI or write Markdown manually</p>
+                <p className="text-slate-500 text-sm mt-1">Generate with AI or write HTML manually</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {slides.map((s, i) => (
                   <div
                     key={i}
-                    className="bg-slate-700/50 border border-slate-600 rounded-lg p-4 hover:border-violet-500/50 transition-colors"
+                    className="border border-slate-600 rounded-lg overflow-hidden hover:border-violet-500/50 transition-colors"
                   >
                     <div
-                      className="origin-top-left mb-3"
-                      style={{ width: 1080 * scale, height: 1920 * scale, transform: `scale(${scale})` }}
+                      className="relative bg-black overflow-hidden"
+                      style={{
+                        width: 1080 * scale,
+                        height: 1920 * scale,
+                      }}
                     >
-                      <SlideFrame
-                        markdown={s}
+                      <SlideHTML
+                        html={s}
                         ref={el => {
                           slideRefs.current[i] = el;
                         }}
                       />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="bg-slate-700/50 px-3 py-2 flex items-center justify-between">
                       <span className="text-xs text-slate-400 font-medium">Slide {i + 1}</span>
                       <span className="text-xs text-slate-500">1080×1920</span>
                     </div>
@@ -249,7 +270,9 @@ export default function Page() {
           <p className="text-slate-400 text-sm">
             1080×1920 export • Perfect for TikTok, YouTube Shorts, and Instagram Reels
           </p>
-          <p className="text-slate-500 text-xs mt-2">Powered by OpenRouter AI • Built with Next.js and Tailwind CSS</p>
+          <p className="text-slate-500 text-xs mt-2">
+            Powered by OpenRouter AI • HTML-to-Image rendering • Built with Next.js
+          </p>
         </div>
       </footer>
     </div>
