@@ -1,12 +1,26 @@
 "use client";
 
-import React, { forwardRef, useEffect, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { toPng } from "html-to-image";
 
 interface SlideRendererProps {
   html: string;
 }
 
-export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ html }, ref) => {
+type CaptureOptions = {
+  width?: number;
+  height?: number;
+  pixelRatio?: number;
+  backgroundColor?: string;
+  engine?: "auto" | "html2canvas" | "html-to-image";
+};
+
+export type SlideRendererHandle = {
+  capturePng: (options?: CaptureOptions) => Promise<string>;
+  getIframe: () => HTMLIFrameElement | null;
+};
+
+export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>(({ html }, ref) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +57,7 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               background: #000000;
               color: #ffffff;
               font-family: 'TikTok Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
             }
 
             body {
@@ -51,9 +66,12 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               align-items: center;
               justify-content: center;
               text-align: center;
-              padding: 64px;
+              padding: 48px 56px;
               overflow: hidden;
             }
+
+            /* Prevent html-to-image from attempting to read external CSS rules */
+            @font-face { font-family: '__noembed'; src: local('☺'); unicode-range: U+F0000; }
             
             h1 {
               font-size: 64px;
@@ -61,11 +79,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               margin-bottom: 24px;
               line-height: 1.15;
               color: #f8fafc;
-              white-space: normal;
-              word-break: break-word;
-              overflow-wrap: anywhere;
-              hyphens: auto;
-              text-wrap: pretty;
             }
             
             h2 {
@@ -74,11 +87,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               margin-bottom: 20px;
               line-height: 1.25;
               color: #e5e7eb;
-              white-space: normal;
-              word-break: break-word;
-              overflow-wrap: anywhere;
-              hyphens: auto;
-              text-wrap: pretty;
             }
             
             h3 {
@@ -87,11 +95,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               margin-bottom: 16px;
               line-height: 1.3;
               color: #e2e8f0;
-              white-space: normal;
-              word-break: break-word;
-              overflow-wrap: anywhere;
-              hyphens: auto;
-              text-wrap: pretty;
             }
             
             p {
@@ -99,11 +102,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               line-height: 1.45;
               color: #cbd5e1;
               margin-bottom: 12px;
-              white-space: normal;
-              word-break: break-word;
-              overflow-wrap: anywhere;
-              hyphens: auto;
-              text-wrap: pretty;
             }
             
             strong {
@@ -120,21 +118,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
             .highlight {
               color: #fe2c55;
               font-weight: 850;
-              white-space: normal;
-            }
-            
-            .image-placeholder {
-              width: 640px;
-              height: 320px;
-              background: rgba(255,255,255,0.06);
-              border: 1px solid rgba(255,255,255,0.18);
-              border-radius: 12px;
-              margin: 24px auto;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #e5e7eb;
-              font-size: 22px;
             }
 
             .ai-image {
@@ -148,7 +131,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
             .cta {
               color: #fe2c55;
               font-weight: 850;
-              white-space: normal;
             }
           </style>
         </head>
@@ -214,13 +196,96 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
     loadImages();
   }, [html]);
 
+  function getIframe(): HTMLIFrameElement | null {
+    return iframeRef.current;
+  }
+
+  async function waitForIframeReady(iframe: HTMLIFrameElement): Promise<void> {
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow as Window | null;
+    if (!doc || !win) return;
+    // @ts-ignore
+    if (doc.fonts && typeof doc.fonts.ready?.then === "function") {
+      try {
+        // @ts-ignore
+        await doc.fonts.ready;
+      } catch {}
+    }
+    await new Promise<void>(r => win.requestAnimationFrame(() => r()));
+    await new Promise<void>(r => win.requestAnimationFrame(() => r()));
+  }
+
+  async function capturePng(options?: CaptureOptions): Promise<string> {
+    const iframe = iframeRef.current;
+    if (!iframe) throw new Error("Iframe not ready");
+    await waitForIframeReady(iframe);
+    const doc = iframe.contentDocument;
+    if (!doc) throw new Error("Iframe document not available");
+    const rootEl = doc.documentElement as HTMLElement;
+    const width = options?.width ?? 1080;
+    const height = options?.height ?? 1920;
+    const backgroundColor = options?.backgroundColor ?? "#000000";
+    const pixelRatio = options?.pixelRatio ?? 1;
+
+    const engine = options?.engine ?? "html2canvas";
+
+    async function renderWithHtml2Canvas(): Promise<string> {
+      const mod = await import("html2canvas");
+      const html2canvas = mod.default;
+      const safeIframe = iframeRef.current as HTMLIFrameElement;
+      const safeDoc = safeIframe.contentDocument as Document;
+      const target = (safeDoc.body as HTMLElement) || rootEl;
+      const canvas = await html2canvas(target, {
+        backgroundColor,
+        scale: pixelRatio,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        windowWidth: width,
+        windowHeight: height,
+        width,
+        height,
+        x: 0,
+        y: 0,
+      } as any);
+      return canvas.toDataURL("image/png");
+    }
+
+    async function renderWithHtmlToImage(): Promise<string> {
+      return toPng(rootEl, {
+        width,
+        height,
+        pixelRatio,
+        cacheBust: true,
+        skipFonts: true,
+        backgroundColor,
+        style: { margin: "0", padding: "0", transformOrigin: "top left" },
+      } as any);
+    }
+
+    if (engine === "html2canvas") {
+      return renderWithHtml2Canvas();
+    }
+    if (engine === "html-to-image") {
+      return renderWithHtmlToImage();
+    }
+    // auto: try html-to-image first, fallback to html2canvas on failure
+    try {
+      return await renderWithHtmlToImage();
+    } catch (_e) {
+      return await renderWithHtml2Canvas();
+    }
+  }
+
+  useImperativeHandle(ref, () => ({ capturePng, getIframe }), []);
+
   return (
     <div
       ref={containerRef}
       className="relative w-[1080px] h-[1920px] overflow-hidden"
       style={{ transform: "scale(0.25)", transformOrigin: "top left" }}
     >
-      <div ref={ref} className="absolute inset-0">
+      <div className="absolute inset-0">
         <iframe
           ref={iframeRef}
           width="1080"

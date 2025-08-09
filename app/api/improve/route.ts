@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type GenerateRequestBody = {
-  prompt: string;
+type ImproveBody = {
+  slides: string[];
+  images?: { slideIndex: number; src: string; alt?: string; prompt?: string }[];
   direction?: string;
   model?: string;
+  prompt?: string;
   slideCount?: number;
 };
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, direction, model, slideCount }: GenerateRequestBody = await req.json();
+    const { slides, images = [], direction, model, prompt, slideCount }: ImproveBody = await req.json();
 
-    if (!prompt || typeof prompt !== "string") {
-      return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
+    if (!slides || !Array.isArray(slides) || slides.length === 0) {
+      return NextResponse.json({ error: "Missing slides" }, { status: 400 });
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -20,13 +22,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENROUTER_API_KEY not set on server" }, { status: 500 });
     }
 
-    const desiredCount = Math.min(5, Math.max(1, Number.isFinite(slideCount as number) ? (slideCount as number) : 2));
+    const desiredCount = Math.min(
+      5,
+      Math.max(1, Number.isFinite(slideCount as number) ? (slideCount as number) : slides.length || 2)
+    );
 
     const system = `
-You are to produce exactly ${desiredCount} vertical video slides. Respond ONLY with a JSON object (no code fences) that conforms to this schema:
+You will receive the current slide HTML and small preview images that were rendered from earlier AI prompts. Improve the slides while respecting the constraints below. Respond ONLY with a JSON object of this TypeScript type (no code fences). You must return exactly ${desiredCount} slides:
 
 type SlidesResponse = {
-  slides: { html: string }[]; // exactly 2 items
+  slides: { html: string }[]; // same length as input slides (or 2 if unspecified)
 };
 
 Rules for slides[i].html:
@@ -34,14 +39,9 @@ Rules for slides[i].html:
 - No inline styles. No arbitrary attributes.
 - Emphasis: <strong> for bold, <em> for italics
 - Special text: <span class="highlight">…</span> and <span class="cta">…</span>
-- Images: To request an AI image, insert exactly: <div class="ai-image" data-prompt="..." data-width="1080" data-height="1080"></div>
+- Images: Use <div class="ai-image" data-prompt="..." data-width="1080" data-height="1080"></div> as the placeholder only; do not embed base64 or URLs in output
 - Do NOT include any slide separators like --- inside html; separation is represented by array items
-- Do NOT include URLs or base64 data in html
 - Do NOT wrap the JSON in code fences
-
-Writing style:
-- Short, punchy, TikTok/social-media tough love text
-- Hierarchy: h1 = main title, h2 = subtitle, p = body
 
 Available CSS classes and when to use them:
 - highlight: accent 1–3 critical words inside headings or sentences (renders in brand color). Use only when emphasis is truly needed.
@@ -49,24 +49,32 @@ Available CSS classes and when to use them:
 - image-placeholder: generic rectangle for manual images (not AI)
 - ai-image: reserved for AI images only; must include data-prompt, data-width="1080", data-height="1080"
 
-Content constraints to avoid overflow:
-- Keep headings under ~6–8 words; prefer text that wraps to multiple lines naturally
-- Split long ideas into multiple <p> blocks instead of one long sentence
-- Avoid adding colors via inline styles; color accents should come only from the highlight/cta classes.
-- Never rely on <br>; use natural wrapping and short phrases
+Improvement goals:
+- Use the provided images as visual context to refine the copy and (optionally) improve ai-image data-prompt keywords for cohesion
+- Prefer clear, concise, multi-line text that wraps naturally; keep headings ~6–8 words
+- Keep or increase contrast by choosing where to apply highlight/cta classes; avoid unnecessary color elsewhere
 
 Forbidden content:
 - Do not output stray type tokens like: string, string?, number, number?, boolean, boolean?, any, unknown, never
 `;
 
-    const userContent = [
-      `Topic or seed: ${prompt}`,
-      direction ? `Direction or style guide: ${direction}` : null,
-      `Produce exactly ${desiredCount} slides (no extra cover unless it counts toward the total).`,
-      "Assume final render size is exactly 1080x1920 on black background using TikTok Sans.",
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    const parts: any[] = [];
+    const slidesText = `Current slides (count=${slides.length}):\n\n${slides
+      .map((s, i) => `Slide ${i + 1}:\n${s}`)
+      .join("\n\n")}`;
+
+    const dirText = direction ? `\n\nStyle/Direction: ${direction}` : "";
+    const promptText = prompt ? `\n\nTopic: ${prompt}` : "";
+
+    parts.push({ type: "text", text: `${slidesText}${dirText}${promptText}\n\nImages follow (data-url previews):` });
+
+    for (const [idx, img] of images.entries()) {
+      const caption = `Image ${idx + 1} for slide ${img.slideIndex + 1}${img.prompt ? ` (prompt: ${img.prompt})` : ""}${
+        img.alt ? ` (alt: ${img.alt})` : ""
+      }`;
+      parts.push({ type: "text", text: caption });
+      parts.push({ type: "image_url", image_url: { url: img.src } });
+    }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -78,7 +86,7 @@ Forbidden content:
         model: model || "openai/gpt-5-mini",
         messages: [
           { role: "system", content: system },
-          { role: "user", content: userContent },
+          { role: "user", content: parts },
         ],
         temperature: 0.7,
         response_format: { type: "json_object" },
@@ -96,7 +104,6 @@ Forbidden content:
       return NextResponse.json({ error: "No content returned from model" }, { status: 502 });
     }
 
-    // Parse and validate the JSON content from the model
     type SlidesResponse = { slides: { html: string }[] };
     let parsed: SlidesResponse;
     try {
@@ -105,25 +112,17 @@ Forbidden content:
       return NextResponse.json({ error: "Model returned non-JSON content" }, { status: 502 });
     }
 
-    if (!parsed || !Array.isArray(parsed.slides)) {
+    if (!parsed || !Array.isArray(parsed.slides) || parsed.slides.length === 0) {
       return NextResponse.json({ error: "JSON missing 'slides' array" }, { status: 502 });
     }
-    // Allow exactly 2 slides; if more, take first 2; if fewer, error
-    if (parsed.slides.length < 2) {
-      return NextResponse.json({ error: "Model returned fewer than 2 slides" }, { status: 502 });
-    }
 
-    const allowedTags = new Set(["h1", "h2", "h3", "p", "strong", "em", "div", "span"]);
     const allowedClasses = new Set(["highlight", "cta", "image-placeholder", "ai-image"]);
 
     function basicSanitize(htmlFragment: string): string {
-      // Remove script/style tags and code fences if any sneaked in
-      let out = htmlFragment
+      let out = String(htmlFragment || "")
         .replace(/```[a-zA-Z]*\n?|```/g, "")
         .replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*(script|style)\s*>/gi, "");
-      // Very light attribute pruning: drop on* handlers
       out = out.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "");
-      // Optional: ensure class names are from allowed set (best-effort string replace)
       out = out.replace(/class\s*=\s*"([^"]*)"/gi, (_m, cls: string) => {
         const filtered = cls
           .split(/\s+/)
@@ -131,10 +130,7 @@ Forbidden content:
           .join(" ");
         return filtered ? `class="${filtered}"` : "";
       });
-      // Remove stray TS type tokens if they appear as isolated words
-      out = out.replace(/(^|\s)(?:string\??|number\??|boolean\??|any|unknown|never)(?=\b|\s|[.,!?:;]|$)/gi, " ");
-      // Note: deep tag allow-list enforcement is non-trivial without an HTML parser; rely on model constraints
-      return out.replace(/\s{2,}/g, " ").trim();
+      return out.trim();
     }
 
     const sanitizedSlides = parsed.slides
@@ -145,9 +141,8 @@ Forbidden content:
     }
 
     const joinedHtml = sanitizedSlides.map(s => s.html).join("\n\n---\n\n");
-
     return NextResponse.json({ html: joinedHtml });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || "Unknown error" }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
   }
 }

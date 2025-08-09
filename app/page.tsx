@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { SlideRenderer } from "@/components/SlideRenderer";
+import { SlideRenderer, type SlideRendererHandle } from "@/components/SlideRenderer";
 import { toPng } from "html-to-image";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -27,7 +27,9 @@ export default function Page() {
   const [htmlContent, setHtmlContent] = useState<string>(DEFAULT_HTML);
   const [prompt, setPrompt] = useState<string>("2 reasons to switch to TypeScript");
   const [direction, setDirection] = useState<string>("");
+  const [slideCount, setSlideCount] = useState<number>(2);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isImproving, setIsImproving] = useState<boolean>(false);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const [exportPreviews, setExportPreviews] = useState<string[]>([]);
 
@@ -48,14 +50,22 @@ export default function Page() {
     await new Promise<void>(r => win.requestAnimationFrame(() => r()));
   };
 
+  const captureOptions = {
+    width: 1080,
+    height: 1920,
+    pixelRatio: 1,
+    cacheBust: true,
+    backgroundColor: "#000000",
+    // Avoid cross-origin stylesheet access (Google Fonts CSS) during embedding
+    // Let the browser-rendered fonts rasterize directly
+    skipFonts: true,
+  };
+
   const slides = useMemo(() => {
-    return htmlContent
-      .split(/\n\s*---\s*\n/gm)
-      .map(s => s.trim())
-      .filter(Boolean);
+    return htmlContent.split(/\n\s*---\s*\n/gm);
   }, [htmlContent]);
 
-  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const slideRefs = useRef<(SlideRendererHandle | null)[]>([]);
   slideRefs.current = Array(slides.length)
     .fill(null)
     .map((_, i) => slideRefs.current[i] || null);
@@ -70,27 +80,10 @@ export default function Page() {
     toast("Exporting slides… This may take a moment.");
 
     for (let i = 0; i < slides.length; i++) {
-      const node = slideRefs.current[i];
-      if (!node) continue;
+      const handle = slideRefs.current[i];
+      if (!handle) continue;
       try {
-        // Find the iframe inside the node
-        const iframe = node.querySelector("iframe") as HTMLIFrameElement;
-        if (!iframe || !iframe.contentDocument) {
-          throw new Error("Could not access iframe content");
-        }
-
-        await waitForIframeReady(iframe);
-        // Export the exact same DOM root as preview (html element)
-        const rootEl = iframe.contentDocument.documentElement;
-        // Ensure no transparent sampling on edges
-        const dataUrl = await toPng(rootEl, {
-          width: 1080,
-          height: 1920,
-          pixelRatio: 1,
-          cacheBust: true,
-          // Avoid font embedding differences
-          skipFonts: true,
-        });
+        const dataUrl = await handle.capturePng({ ...(captureOptions as any), engine: "html2canvas" });
         const base64 = dataUrl.split(",")[1];
         const index = (i + 1).toString().padStart(2, "0");
         zip.file(`slide-${index}.png`, base64, { base64: true });
@@ -115,23 +108,9 @@ export default function Page() {
       setIsPreviewing(true);
       const urls: string[] = [];
       for (let i = 0; i < slides.length; i++) {
-        const node = slideRefs.current[i];
-        if (!node) continue;
-        const iframe = node.querySelector("iframe") as HTMLIFrameElement | null;
-        if (!iframe || !iframe.contentDocument) continue;
-        await waitForIframeReady(iframe);
-        const rootEl = iframe.contentDocument.documentElement;
-        rootEl.style.margin = "0";
-        rootEl.style.padding = "0";
-        const dataUrl = await toPng(rootEl, {
-          width: 1080,
-          height: 1920,
-          pixelRatio: 1,
-          cacheBust: true,
-          skipFonts: true,
-          backgroundColor: "#000000",
-          style: { margin: "0", padding: "0" },
-        });
+        const handle = slideRefs.current[i];
+        if (!handle) continue;
+        const dataUrl = await handle.capturePng({ ...(captureOptions as any), engine: "html2canvas" });
         urls.push(dataUrl);
       }
       setExportPreviews(urls);
@@ -154,7 +133,7 @@ export default function Page() {
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, direction }),
+        body: JSON.stringify({ prompt, direction, slideCount }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -169,6 +148,90 @@ export default function Page() {
       toast.error(e?.message || "Generation failed");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  async function downscaleDataUrl(dataUrl: string, maxDim = 512, quality = 0.7): Promise<string> {
+    try {
+      const img = await loadImage(dataUrl);
+      const { width, height } = img;
+      const scale = Math.min(1, maxDim / Math.max(width, height));
+      const w = Math.max(1, Math.round(width * scale));
+      const h = Math.max(1, Math.round(height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return dataUrl;
+      ctx.drawImage(img, 0, 0, w, h);
+      return canvas.toDataURL("image/jpeg", quality);
+    } catch {
+      return dataUrl;
+    }
+  }
+
+  const handleImprove = async () => {
+    if (!slides.length) {
+      toast("Nothing to improve. Generate or paste slides first.");
+      return;
+    }
+    try {
+      setIsImproving(true);
+      // Collect up to 2 images per slide (downscaled)
+      const images: { slideIndex: number; src: string; alt?: string; prompt?: string }[] = [];
+      for (let i = 0; i < slides.length; i++) {
+        const handle = slideRefs.current[i];
+        if (!handle) continue;
+        const iframe = handle.getIframe();
+        if (!iframe || !iframe.contentDocument) continue;
+        await waitForIframeReady(iframe);
+        const doc = iframe.contentDocument;
+        const containers = Array.from(doc.querySelectorAll(".ai-image")) as HTMLElement[];
+        let taken = 0;
+        for (const el of containers) {
+          const img = el.querySelector("img") as HTMLImageElement | null;
+          if (!img) continue;
+          const src = img.getAttribute("src") || "";
+          if (!src.startsWith("data:")) continue;
+          const small = await downscaleDataUrl(src, 512, 0.7);
+          images.push({
+            slideIndex: i,
+            src: small,
+            alt: img.getAttribute("alt") || undefined,
+            prompt: el.getAttribute("data-prompt") || undefined,
+          });
+          taken++;
+          if (taken >= 2) break;
+        }
+      }
+
+      const res = await fetch("/api/improve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slides, images, direction, prompt, slideCount }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to improve");
+      }
+      const html = String(data.html || "").trim();
+      if (!html) throw new Error("Empty response from model");
+      setHtmlContent(html);
+      toast.success("Improved slides with image context");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Improve failed");
+    } finally {
+      setIsImproving(false);
     }
   };
 
@@ -235,6 +298,24 @@ export default function Page() {
                   className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus:border-violet-500 focus:ring-violet-500"
                 />
               </div>
+              <div className="space-y-2">
+                <label htmlFor="slides" className="text-sm font-medium text-slate-300">
+                  Number of slides
+                </label>
+                <div className="flex gap-2">
+                  {[2, 3].map(n => (
+                    <Button
+                      key={n}
+                      type="button"
+                      variant={slideCount === n ? undefined : "outline"}
+                      className={slideCount === n ? "bg-violet-600 text-white" : "border-slate-600 text-slate-300"}
+                      onClick={() => setSlideCount(n)}
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-center gap-3 pt-2">
                 <Button
                   onClick={handleGenerate}
@@ -242,6 +323,13 @@ export default function Page() {
                   className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white border-0 flex-1"
                 >
                   {isGenerating ? "Generating…" : "✨ Generate 2 slides"}
+                </Button>
+                <Button
+                  onClick={handleImprove}
+                  disabled={isImproving || slides.length === 0}
+                  className="bg-slate-700 hover:bg-slate-600 text-white border-0"
+                >
+                  {isImproving ? "Improving…" : "🪄 Improve with images"}
                 </Button>
                 <Button
                   variant="outline"
@@ -306,8 +394,8 @@ export default function Page() {
                     >
                       <SlideRenderer
                         html={s}
-                        ref={el => {
-                          slideRefs.current[i] = el;
+                        ref={instance => {
+                          slideRefs.current[i] = instance;
                         }}
                       />
                     </div>

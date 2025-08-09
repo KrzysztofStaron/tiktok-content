@@ -17,6 +17,7 @@
     "clsx": "^2.1.1",
     "file-saver": "^2.0.5",
     "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
     "jszip": "^3.10.1",
     "next": "15.4.6",
     "next-themes": "^0.3.0",
@@ -35,6 +36,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/html2canvas": "^1.0.0"
   }
 }
