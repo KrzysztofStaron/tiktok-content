@@ -1,3 +1,16 @@
+TikTok Slideshow Generator (Markdown → 1080×1920)
+
+- Paste Markdown, split slides with a line containing only `---`.
+- Preview slides and export all as a ZIP of 1080×1920 PNGs.
+
+Tech: Next.js App Router, Tailwind CSS v4, shadcn-style UI, Radix, React Query, Sonner.
+
+Scripts
+
+- pnpm dev
+- pnpm build
+- pnpm start
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
