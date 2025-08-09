@@ -40,12 +40,6 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               background: black;
               color: white;
               font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              background-image: 
-                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-              background-size: 40px 40px;
-              /* Offset the grid so it doesn't draw a line on the top/left edges */
-              background-position: 25px 25px;
             }
 
             body {

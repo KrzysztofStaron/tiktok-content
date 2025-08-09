@@ -28,6 +28,8 @@ export default function Page() {
   const [prompt, setPrompt] = useState<string>("");
   const [direction, setDirection] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
+  const [exportPreviews, setExportPreviews] = useState<string[]>([]);
 
   const slides = useMemo(() => {
     return htmlContent
@@ -93,6 +95,44 @@ export default function Page() {
     toast.success("Export complete! Download started.");
   };
 
+  // Dev-only: generate PNGs and show them inline without ZIP
+  const handlePreviewExports = async () => {
+    if (!slides.length) {
+      toast("Nothing to preview. Add some HTML content.");
+      return;
+    }
+    try {
+      setIsPreviewing(true);
+      const urls: string[] = [];
+      for (let i = 0; i < slides.length; i++) {
+        const node = slideRefs.current[i];
+        if (!node) continue;
+        const iframe = node.querySelector("iframe") as HTMLIFrameElement | null;
+        if (!iframe || !iframe.contentDocument) continue;
+        const rootEl = iframe.contentDocument.documentElement;
+        rootEl.style.margin = "0";
+        rootEl.style.padding = "0";
+        const dataUrl = await toPng(rootEl, {
+          width: 1080,
+          height: 1920,
+          pixelRatio: 1,
+          cacheBust: true,
+          skipFonts: true,
+          backgroundColor: "#000000",
+          style: { margin: "0", padding: "0" },
+        });
+        urls.push(dataUrl);
+      }
+      setExportPreviews(urls);
+      if (urls.length) toast.success("Generated export previews");
+    } catch (e) {
+      console.error(e);
+      toast.error("Preview export failed");
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       toast("Add a topic or prompt first.");
@@ -139,6 +179,14 @@ export default function Page() {
               className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white border-0"
             >
               Export ZIP
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handlePreviewExports}
+              disabled={isPreviewing}
+              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            >
+              {isPreviewing ? "Previewing…" : "Dev: Preview PNGs"}
             </Button>
           </div>
         </div>
@@ -258,6 +306,43 @@ export default function Page() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            {exportPreviews.length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-slate-300">
+                    Dev: Exported PNG previews ({exportPreviews.length})
+                  </h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExportPreviews([])}
+                      className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {exportPreviews.map((url, i) => (
+                    <div
+                      key={i}
+                      className="border border-slate-600 rounded-lg overflow-hidden bg-black flex items-center justify-center"
+                      style={{ width: 1080 * scale, height: 1920 * scale }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={`export-${i + 1}`}
+                        width={1080 * scale}
+                        height={1920 * scale}
+                        className="object-contain"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
