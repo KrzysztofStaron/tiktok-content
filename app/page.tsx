@@ -488,7 +488,7 @@ export default function Page() {
   const scale = 0.25;
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-white">
+    <div className="min-h-screen bg-zinc-900 text-white flex flex-col">
       <header className="sticky top-0 z-10 border-b border-zinc-700 bg-zinc-900/90 backdrop-blur">
         <div className="container mx-auto flex items-center justify-between py-6">
           <div>
@@ -504,7 +504,7 @@ export default function Page() {
             >
               Export ZIP
             </Button>
-            {/*}
+            {/**
             <Button
               variant="outline"
               onClick={handlePreviewExports}
@@ -518,7 +518,7 @@ export default function Page() {
         </div>
       </header>
 
-      <main className="container mx-auto grid grid-cols-1 gap-8 py-8 lg:grid-cols-5">
+      <main className="container mx-auto grid grid-cols-1 gap-8 py-8 lg:grid-cols-5 flex-1">
         <section className="lg:col-span-2 space-y-8">
           <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700 rounded-xl p-6">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
@@ -865,16 +865,13 @@ export default function Page() {
         </div>
       )}
 
-      <footer className="border-t border-zinc-700 py-8 mt-12 absolute bottom-0 left-0 right-0">
+      <footer className="border-t border-zinc-700 py-8 mt-12">
         <div className="container mx-auto text-center">
           <p className="text-zinc-400 text-sm">
             1080×1920 export • Perfect for TikTok, YouTube Shorts, and Instagram Reels
           </p>
           <p className="text-zinc-500 text-xs mt-2">
-            Powered by GPT-5 • HTML-to-Image rendering • Built by{" "}
-            <a href="https://x.com/PanzerBread" target="_blank" className="text-zinc-400">
-              @PanzerBread
-            </a>
+            Powered by OpenRouter AI • HTML-to-Image rendering • Built with Next.js
           </p>
         </div>
       </footer>

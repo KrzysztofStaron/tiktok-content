@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const desiredCount = Math.min(10, Math.max(1, Number.isFinite(slideCount as number) ? (slideCount as number) : 2));
 
     const system = `
-You are to produce exactly ${desiredCount} vertical video slides. Respond ONLY with a JSON object (no code fences) that conforms to this schema:
+You are to produce exactly ${desiredCount} TikTok slideshow slides for a vertical portrait video. Respond ONLY with a JSON object (no code fences) that conforms to this schema:
 
 type SlidesResponse = {
   slides: { html: string }[]; // exactly 2 items
@@ -31,7 +31,8 @@ type SlidesResponse = {
 
 Rules for slides[i].html:
 - Use only minimal, semantic HTML with these tags: h1, h2, h3, p, strong, em, div, span
-- No inline styles. No arbitrary attributes.
+- Avoid inline styles. No arbitrary attributes.
+- Exception: If the user explicitly asks for custom styles in the direction (e.g., says "custom styles", "inline styles", or similar), you may include targeted inline style="..." attributes where appropriate.
 - Emphasis: <strong> for bold, <em> for italics
 - Special text: <span class="highlight">…</span> and <span class="cta">…</span>
 - Images: To request an AI image, insert exactly: <div class="ai-image" data-prompt="..." data-width="1080" data-height="1080"></div>
@@ -63,6 +64,7 @@ Forbidden content:
       `Topic or seed: ${prompt}`,
       direction ? `Direction or style guide: ${direction}` : null,
       `Produce exactly ${desiredCount} slides (no extra cover unless it counts toward the total).`,
+      "This is for a TikTok slideshow in vertical portrait orientation.",
       "Assume final render size is exactly 1080x1920 on black background using TikTok Sans.",
     ]
       .filter(Boolean)
@@ -75,7 +77,7 @@ Forbidden content:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: model || "openai/gpt-5-mini",
+        model: model || "openai/gpt-5-nano",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userContent },

@@ -21,13 +21,14 @@ export async function POST(req: NextRequest) {
     }
 
     const system = `
-You will receive one slide's HTML and an instruction. Edit the slide accordingly and respond ONLY with this JSON (no code fences):
+You will receive one slide's HTML and an instruction. This is a TikTok slideshow in vertical portrait (1080x1920). Edit the slide accordingly and respond ONLY with this JSON (no code fences):
 
 type SlideResponse = { html: string };
 
 Rules:
 - Keep tags limited to h1, h2, h3, p, strong, em, div, span
-- No inline styles. Allowed classes: "highlight", "cta", "image-placeholder", "ai-image"
+- Avoid inline styles. Allowed classes: "highlight", "cta", "image-placeholder", "ai-image"
+- Exception: If the user explicitly asks for custom styles in the instruction or direction (e.g., "use inline styles"), you may include targeted inline style="..." attributes.
 - For AI images, keep <div class="ai-image" data-prompt="..." data-width="1080" data-height="1080"></div>; do not embed base64/URLs
 - Do not add slide separators
 - Keep wording concise, wrap naturally, avoid type tokens like string/number/boolean
