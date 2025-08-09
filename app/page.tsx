@@ -865,13 +865,16 @@ export default function Page() {
         </div>
       )}
 
-      <footer className="border-t border-zinc-700 py-8 mt-12">
+      <footer className="border-t border-zinc-700 py-8 mt-12 absolute bottom-0 left-0 right-0">
         <div className="container mx-auto text-center">
           <p className="text-zinc-400 text-sm">
             1080×1920 export • Perfect for TikTok, YouTube Shorts, and Instagram Reels
           </p>
           <p className="text-zinc-500 text-xs mt-2">
-            Powered by OpenRouter AI • HTML-to-Image rendering • Built with Next.js
+            Powered by GPT-5 • HTML-to-Image rendering • Built by{" "}
+            <a href="https://x.com/PanzerBread" target="_blank" className="text-zinc-400">
+              @PanzerBread
+            </a>
           </p>
         </div>
       </footer>
