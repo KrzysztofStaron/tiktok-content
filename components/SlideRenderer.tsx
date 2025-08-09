@@ -59,22 +59,26 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               font-size: 64px;
               font-weight: 750;
               margin-bottom: 24px;
-              line-height: 1.1;
+              line-height: 1.15;
               color: #f8fafc;
-              white-space: nowrap;
-              word-break: keep-all;
-              overflow-wrap: normal;
+              white-space: normal;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+              hyphens: auto;
+              text-wrap: pretty;
             }
             
             h2 {
               font-size: 48px;
               font-weight: 700;
               margin-bottom: 20px;
-              line-height: 1.2;
+              line-height: 1.25;
               color: #e5e7eb;
-              white-space: nowrap;
-              word-break: keep-all;
-              overflow-wrap: normal;
+              white-space: normal;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+              hyphens: auto;
+              text-wrap: pretty;
             }
             
             h3 {
@@ -83,36 +87,40 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               margin-bottom: 16px;
               line-height: 1.3;
               color: #e2e8f0;
-              white-space: nowrap;
-              word-break: keep-all;
-              overflow-wrap: normal;
+              white-space: normal;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+              hyphens: auto;
+              text-wrap: pretty;
             }
             
             p {
               font-size: 32px;
-              line-height: 1.4;
+              line-height: 1.45;
               color: #cbd5e1;
               margin-bottom: 12px;
-              white-space: nowrap;
-              word-break: keep-all;
-              overflow-wrap: normal;
+              white-space: normal;
+              word-break: break-word;
+              overflow-wrap: anywhere;
+              hyphens: auto;
+              text-wrap: pretty;
             }
             
             strong {
-              color: #fe2c55;
+              color: inherit;
               font-weight: 800;
-              white-space: nowrap;
+              white-space: normal;
             }
             
             em {
-              color: #f59e0b;
+              color: inherit;
               font-style: italic;
             }
             
             .highlight {
               color: #fe2c55;
               font-weight: 850;
-              white-space: nowrap;
+              white-space: normal;
             }
             
             .image-placeholder {
@@ -128,11 +136,19 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
               color: #e5e7eb;
               font-size: 22px;
             }
+
+            .ai-image {
+              width: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 320px;
+            }
             
             .cta {
               color: #fe2c55;
               font-weight: 850;
-              white-space: nowrap;
+              white-space: normal;
             }
           </style>
         </head>
@@ -145,6 +161,57 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
     doc.open();
     doc.write(fullHtml);
     doc.close();
+
+    // After mount, find any ai-image nodes and fetch images
+    const loadImages = async () => {
+      const aiNodes = (doc.querySelectorAll(".ai-image") || []) as unknown as HTMLElement[];
+      if (!aiNodes || !aiNodes.length) return;
+      for (const el of Array.from(aiNodes)) {
+        const prompt = el.getAttribute("data-prompt") || "";
+        const w = Number(el.getAttribute("data-width") || "640");
+        const h = Number(el.getAttribute("data-height") || "640");
+        if (!prompt) continue;
+
+        // Create a unique request id to avoid race conditions
+        const reqId = String(performance.now() + Math.random());
+        el.setAttribute("data-req-id", reqId);
+
+        // Clear previous children immediately (remove old image)
+        while (el.firstChild) el.removeChild(el.firstChild);
+        el.textContent = "Generating image…";
+        try {
+          const res = await fetch("/api/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt, width: w, height: h }),
+          });
+          const data = await res.json();
+
+          // If another request started meanwhile, ignore this result
+          if (el.getAttribute("data-req-id") !== reqId) continue;
+
+          if (res.ok && data?.dataUrl) {
+            const img = doc.createElement("img");
+            img.src = data.dataUrl;
+            img.alt = prompt;
+            img.style.maxWidth = "80%";
+            img.style.borderRadius = "12px";
+            img.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)";
+            img.style.margin = "24px auto";
+            el.innerHTML = "";
+            el.appendChild(img);
+          } else {
+            el.textContent = "Image generation failed";
+          }
+        } catch (e) {
+          // If another request started meanwhile, ignore this result
+          if (el.getAttribute("data-req-id") !== reqId) continue;
+          el.textContent = "Image generation error";
+        }
+      }
+    };
+    // Kick off image loading
+    loadImages();
   }, [html]);
 
   return (

@@ -16,7 +16,7 @@ const DEFAULT_HTML = `<h1>Hook your audience in <span class="highlight">3 second
 ---
 
 <h2>Show, don't tell</h2>
-<div class="image-placeholder">💻 Laptop mockup visualization</div>
+<div class="ai-image" data-prompt="A laptop mockup visualization" data-width="1080" data-height="1080"></div>
 
 ---
 
@@ -25,7 +25,7 @@ const DEFAULT_HTML = `<h1>Hook your audience in <span class="highlight">3 second
 
 export default function Page() {
   const [htmlContent, setHtmlContent] = useState<string>(DEFAULT_HTML);
-  const [prompt, setPrompt] = useState<string>("");
+  const [prompt, setPrompt] = useState<string>("2 reasons to switch to TypeScript");
   const [direction, setDirection] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);

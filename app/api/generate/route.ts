@@ -19,19 +19,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENROUTER_API_KEY not set on server" }, { status: 500 });
     }
 
-    const system = [
-      "You generate exactly 2 vertical video slides as minimal, semantic HTML.",
-      "Use ONLY semantic HTML tags: h1, h2, h3, p, strong, em, and div.",
-      "NO inline styles, NO CSS classes except these special ones: 'highlight', 'cta', 'image-placeholder'.",
-      "Separate slides with a line that contains only ---.",
-      "Prefer short, punchy text suitable for TikTok/social media.",
-      "Use proper hierarchy: h1 for main titles, h2 for subtitles, p for body text.",
-      "Use strong for emphasis and em for italics.",
-      'For special highlighted text, use <span class="highlight">text</span>.',
-      'For call-to-action text, use <span class="cta">text</span>.',
-      'For image placeholders, use <div class="image-placeholder">📱 Description</div>.',
-      "Keep HTML clean and minimal - all styling comes from the wrapper component.",
-    ].join(" \n");
+    const system = `
+You are to produce exactly 2 vertical video slides. Respond ONLY with a JSON object (no code fences) that conforms to this schema:
+
+type SlidesResponse = {
+  slides: { html: string }[]; // exactly 2 items
+};
+
+Rules for slides[i].html:
+- Use only minimal, semantic HTML with these tags: h1, h2, h3, p, strong, em, div, span
+- No inline styles. No arbitrary attributes.
+- Emphasis: <strong> for bold, <em> for italics
+- Special text: <span class="highlight">…</span> and <span class="cta">…</span>
+- Images: To request an AI image, insert exactly: <div class="ai-image" data-prompt="..." data-width="1080" data-height="1080"></div>
+- Do NOT include any slide separators like --- inside html; separation is represented by array items
+- Do NOT include URLs or base64 data in html
+- Do NOT wrap the JSON in code fences
+
+Writing style:
+- Short, punchy, TikTok/social-media tough love text
+- Hierarchy: h1 = main title, h2 = subtitle, p = body
+
+Available CSS classes and when to use them:
+- highlight: accent 1–3 critical words inside headings or sentences (renders in brand color). Use only when emphasis is truly needed.
+- cta: short call-to-action phrase; use once per slide (renders in brand color).
+- image-placeholder: generic rectangle for manual images (not AI)
+- ai-image: reserved for AI images only; must include data-prompt, data-width="1080", data-height="1080"
+
+Content constraints to avoid overflow:
+- Keep headings under ~6–8 words; prefer text that wraps to multiple lines naturally
+- Split long ideas into multiple <p> blocks instead of one long sentence
+- Avoid adding colors via inline styles; color accents should come only from the highlight/cta classes.
+- Never rely on <br>; use natural wrapping and short phrases
+`;
 
     const userContent = [
       `Topic or seed: ${prompt}`,
@@ -48,15 +68,14 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: model || "openai/gpt-4o-mini",
+        model: model || "openai/gpt-5-mini",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userContent },
         ],
         temperature: 0.7,
+        response_format: { type: "json_object" },
       }),
-      // @ts-ignore RequestInit type mismatch in edge/runtime sometimes
-      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -65,12 +84,58 @@ export async function POST(req: NextRequest) {
     }
 
     const data = (await response.json()) as any;
-    const html: string | undefined = data?.choices?.[0]?.message?.content;
-    if (!html) {
+    const content: string | undefined = data?.choices?.[0]?.message?.content;
+    if (!content) {
       return NextResponse.json({ error: "No content returned from model" }, { status: 502 });
     }
 
-    return NextResponse.json({ html });
+    // Parse and validate the JSON content from the model
+    type SlidesResponse = { slides: { html: string }[] };
+    let parsed: SlidesResponse;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      return NextResponse.json({ error: "Model returned non-JSON content" }, { status: 502 });
+    }
+
+    if (!parsed || !Array.isArray(parsed.slides)) {
+      return NextResponse.json({ error: "JSON missing 'slides' array" }, { status: 502 });
+    }
+    // Allow exactly 2 slides; if more, take first 2; if fewer, error
+    if (parsed.slides.length < 2) {
+      return NextResponse.json({ error: "Model returned fewer than 2 slides" }, { status: 502 });
+    }
+
+    const allowedTags = new Set(["h1", "h2", "h3", "p", "strong", "em", "div", "span"]);
+    const allowedClasses = new Set(["highlight", "cta", "image-placeholder", "ai-image"]);
+
+    function basicSanitize(htmlFragment: string): string {
+      // Remove script/style tags and code fences if any sneaked in
+      let out = htmlFragment
+        .replace(/```[a-zA-Z]*\n?|```/g, "")
+        .replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*(script|style)\s*>/gi, "");
+      // Very light attribute pruning: drop on* handlers
+      out = out.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "");
+      // Optional: ensure class names are from allowed set (best-effort string replace)
+      out = out.replace(/class\s*=\s*"([^"]*)"/gi, (_m, cls: string) => {
+        const filtered = cls
+          .split(/\s+/)
+          .filter((c: string) => allowedClasses.has(c))
+          .join(" ");
+        return filtered ? `class="${filtered}"` : "";
+      });
+      // Note: deep tag allow-list enforcement is non-trivial without an HTML parser; rely on model constraints
+      return out.trim();
+    }
+
+    const sanitizedSlides = parsed.slides.slice(0, 2).map(s => ({ html: basicSanitize(String(s?.html || "")) }));
+    if (!sanitizedSlides.every(s => s.html)) {
+      return NextResponse.json({ error: "One or more slides are empty after sanitize" }, { status: 502 });
+    }
+
+    const joinedHtml = sanitizedSlides.map(s => s.html).join("\n\n---\n\n");
+
+    return NextResponse.json({ html: joinedHtml });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Unknown error" }, { status: 500 });
   }
