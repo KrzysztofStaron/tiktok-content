@@ -504,6 +504,7 @@ export default function Page() {
             >
               Export ZIP
             </Button>
+            {/*}
             <Button
               variant="outline"
               onClick={handlePreviewExports}
@@ -512,6 +513,7 @@ export default function Page() {
             >
               {isPreviewing ? "Previewing…" : "Dev: Preview PNGs"}
             </Button>
+            */}
           </div>
         </div>
       </header>
