@@ -6,7 +6,7 @@ Generate and iterate vertical TikTok slideshow slides (1080×1920) with AI. Expo
 
 ![Editor and preview](./public/ss1.png)
 
-![Modal and history](./public/ss2)
+![Modal and history](./public/ss2.png)
 
 ### Features
 
