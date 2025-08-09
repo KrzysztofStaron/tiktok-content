@@ -339,10 +339,21 @@ export default function Page() {
       setEditPrompt("");
       // Wait for images in the iframe to finish generating by polling for <img> nodes inside .ai-image
       const waitForImages = async () => {
-        const handle2 = slideRefs.current[index];
-        const iframe = handle2?.getIframe();
-        const doc = iframe?.contentDocument || null;
-        if (!doc) return;
+        // Ensure the SlideRenderer for this index has remounted and its iframe is ready
+        let handle2 = slideRefs.current[index];
+        let iframe = handle2?.getIframe() || null;
+        let doc: Document | null = iframe?.contentDocument || null;
+        const startWait = Date.now();
+        while ((!doc || !iframe) && Date.now() - startWait < 2000) {
+          await new Promise(r => setTimeout(r, 50));
+          handle2 = slideRefs.current[index];
+          iframe = handle2?.getIframe() || null;
+          doc = iframe?.contentDocument || null;
+        }
+        if (!doc || !iframe) return;
+        try {
+          await waitForIframeReady(iframe);
+        } catch {}
         const deadline = Date.now() + 15000; // up to 15s
         // consider done when every .ai-image has either an <img> child or shows an error message
         const isDone = () => {
@@ -374,11 +385,11 @@ export default function Page() {
         setIsGeneratingImages(false);
       };
       await waitForImages();
-      // recapture preview after images are ready
+      // recapture preview after images are ready (re-get handle in case ref changed)
       try {
-        const handle2 = slideRefs.current[index];
-        if (handle2) {
-          const url = await handle2.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
+        const handle3 = slideRefs.current[index];
+        if (handle3) {
+          const url = await handle3.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
           setModalImageUrl(url);
         }
       } catch {}
@@ -500,8 +511,17 @@ export default function Page() {
           <div className="flex gap-3">
             <Button
               onClick={handleExportAll}
-              className="bg-gradient-to-r from-red-600 to-sky-600 hover:from-red-700 hover:to-sky-700 text-white border-0"
+              className="bg-zinc-500 hover:bg-zinc-600 text-white border-0 flex items-center gap-2"
             >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" className="inline-block" aria-hidden="true">
+                <path
+                  d="M10 3v8m0 0l-3-3m3 3l3-3M4 13v2a2 2 0 002 2h8a2 2 0 002-2v-2"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               Export ZIP
             </Button>
             {/**
