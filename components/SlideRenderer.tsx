@@ -22,6 +22,11 @@ export type SlideRendererHandle = {
   getIframe: () => HTMLIFrameElement | null;
 };
 
+// In-memory cache keyed by prompt
+const promptToDataUrlCache: Map<string, string> = new Map();
+// Track in-flight requests to deduplicate
+const promptToInFlight: Map<string, Promise<string>> = new Map();
+
 export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>(
   ({ html, scale = 0.25, onContentChanged }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -217,19 +222,40 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
           while (el.firstChild) el.removeChild(el.firstChild);
           el.textContent = "Generating image…";
           try {
-            const res = await fetch("/api/image", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ prompt, width: w, height: h }),
-            });
-            const data = await res.json();
+            let dataUrl: string | undefined = promptToDataUrlCache.get(prompt);
+            if (!dataUrl) {
+              let inFlight = promptToInFlight.get(prompt);
+              if (!inFlight) {
+                inFlight = (async () => {
+                  const res = await fetch("/api/image", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt, width: w, height: h }),
+                  });
+                  if (!res.ok) {
+                    const text = await res.text().catch(() => "");
+                    throw new Error(text || "Image API error");
+                  }
+                  const data = await res.json();
+                  if (!data?.dataUrl) throw new Error("No dataUrl returned");
+                  promptToDataUrlCache.set(prompt, data.dataUrl);
+                  return data.dataUrl as string;
+                })();
+                promptToInFlight.set(prompt, inFlight);
+              }
+              try {
+                dataUrl = await inFlight;
+              } finally {
+                promptToInFlight.delete(prompt);
+              }
+            }
 
             // If another request started meanwhile, ignore this result
             if (el.getAttribute("data-req-id") !== reqId) continue;
 
-            if (res.ok && data?.dataUrl) {
+            if (dataUrl) {
               const img = doc.createElement("img");
-              img.src = data.dataUrl;
+              img.src = dataUrl;
               img.alt = prompt;
               img.style.maxWidth = "80%";
               img.style.borderRadius = "12px";

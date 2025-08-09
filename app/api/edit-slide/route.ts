@@ -49,6 +49,8 @@ Rules:
       });
     }
 
+    console.log(parts);
+
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
