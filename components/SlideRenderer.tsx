@@ -5,6 +5,7 @@ import { toPng } from "html-to-image";
 
 interface SlideRendererProps {
   html: string;
+  scale?: number;
 }
 
 type CaptureOptions = {
@@ -20,7 +21,7 @@ export type SlideRendererHandle = {
   getIframe: () => HTMLIFrameElement | null;
 };
 
-export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>(({ html }, ref) => {
+export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>(({ html, scale = 0.25 }, ref) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -37,9 +38,6 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
         <html>
         <head>
           <meta charset="utf-8">
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap" rel="stylesheet">
           <style>
             html, body {
               width: 1080px;
@@ -56,7 +54,11 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
             html {
               background: #000000;
               color: #ffffff;
-              font-family: 'TikTok Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              font-kerning: normal;
+              font-variant-ligatures: none;
+              -webkit-font-smoothing: antialiased;
+              -moz-osx-font-smoothing: grayscale;
 
             }
 
@@ -79,6 +81,9 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
               margin-bottom: 24px;
               line-height: 1.15;
               color: #f8fafc;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
             }
             
             h2 {
@@ -87,6 +92,9 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
               margin-bottom: 20px;
               line-height: 1.25;
               color: #e5e7eb;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
             }
             
             h3 {
@@ -95,6 +103,9 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
               margin-bottom: 16px;
               line-height: 1.3;
               color: #e2e8f0;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
             }
             
             p {
@@ -102,22 +113,39 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
               line-height: 1.45;
               color: #cbd5e1;
               margin-bottom: 12px;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
             }
             
             strong {
               color: inherit;
               font-weight: 800;
               white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
+              margin: 0 0.12em;
+              display: inline;
             }
             
             em {
               color: inherit;
               font-style: italic;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
+              margin: 0 0.12em;
+              display: inline;
             }
             
             .highlight {
               color: #fe2c55;
               font-weight: 850;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
+              margin: 0 0.12em;
+              display: inline;
             }
 
             .ai-image {
@@ -131,6 +159,19 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
             .cta {
               color: #fe2c55;
               font-weight: 850;
+              white-space: normal;
+              word-spacing: normal;
+              letter-spacing: normal;
+              margin: 0 0.12em;
+              display: inline;
+            }
+
+            /* Ensure spaces around inline emphasis elements even if the HTML omits them */
+            strong::before, strong::after,
+            em::before, em::after,
+            .highlight::before, .highlight::after,
+            .cta::before, .cta::after {
+              content: " ";
             }
           </style>
         </head>
@@ -283,7 +324,7 @@ export const SlideRenderer = forwardRef<SlideRendererHandle, SlideRendererProps>
     <div
       ref={containerRef}
       className="relative w-[1080px] h-[1920px] overflow-hidden"
-      style={{ transform: "scale(0.25)", transformOrigin: "top left" }}
+      style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
     >
       <div className="absolute inset-0">
         <iframe

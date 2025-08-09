@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OPENROUTER_API_KEY not set on server" }, { status: 500 });
     }
 
-    const desiredCount = Math.min(5, Math.max(1, Number.isFinite(slideCount as number) ? (slideCount as number) : 2));
+    const desiredCount = Math.min(10, Math.max(1, Number.isFinite(slideCount as number) ? (slideCount as number) : 2));
 
     const system = `
 You are to produce exactly ${desiredCount} vertical video slides. Respond ONLY with a JSON object (no code fences) that conforms to this schema:

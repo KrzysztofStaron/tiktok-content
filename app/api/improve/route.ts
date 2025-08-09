@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     const desiredCount = Math.min(
-      5,
+      10,
       Math.max(1, Number.isFinite(slideCount as number) ? (slideCount as number) : slides.length || 2)
     );
 

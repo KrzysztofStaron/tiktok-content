@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -28,10 +28,15 @@ export default function Page() {
   const [prompt, setPrompt] = useState<string>("2 reasons to switch to TypeScript");
   const [direction, setDirection] = useState<string>("");
   const [slideCount, setSlideCount] = useState<number>(2);
+  const [editPrompt, setEditPrompt] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isImproving, setIsImproving] = useState<boolean>(false);
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const [exportPreviews, setExportPreviews] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [activeModalIndex, setActiveModalIndex] = useState<number | null>(null);
+  const [modalImageUrl, setModalImageUrl] = useState<string>("");
+  const [isCapturingForModal, setIsCapturingForModal] = useState<boolean>(false);
 
   // Ensure iframe content is fully laid out (fonts/styles) before rasterizing
   const waitForIframeReady = async (iframe: HTMLIFrameElement) => {
@@ -150,6 +155,51 @@ export default function Page() {
       setIsGenerating(false);
     }
   };
+
+  // Modal helpers
+  const openModal = async (index: number) => {
+    setActiveModalIndex(index);
+    setIsCapturingForModal(true);
+    try {
+      const handle = slideRefs.current[index];
+      if (handle) {
+        const dataUrl = await handle.capturePng({
+          width: 1080,
+          height: 1920,
+          pixelRatio: 1,
+          backgroundColor: "#000000",
+          engine: "html2canvas",
+        });
+        setModalImageUrl(dataUrl);
+        setIsModalOpen(true);
+        if (typeof document !== "undefined") {
+          document.documentElement.style.overflow = "hidden";
+        }
+      }
+    } catch (e) {
+      console.error("Failed to capture slide for modal:", e);
+      toast.error("Failed to open preview");
+    } finally {
+      setIsCapturingForModal(false);
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setActiveModalIndex(null);
+    setModalImageUrl("");
+    if (typeof document !== "undefined") {
+      document.documentElement.style.overflow = "";
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeModal();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   async function loadImage(dataUrl: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
@@ -302,18 +352,17 @@ export default function Page() {
                 <label htmlFor="slides" className="text-sm font-medium text-slate-300">
                   Number of slides
                 </label>
-                <div className="flex gap-2">
-                  {[2, 3].map(n => (
-                    <Button
-                      key={n}
-                      type="button"
-                      variant={slideCount === n ? undefined : "outline"}
-                      className={slideCount === n ? "bg-violet-600 text-white" : "border-slate-600 text-slate-300"}
-                      onClick={() => setSlideCount(n)}
-                    >
-                      {n}
-                    </Button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="slides"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={slideCount}
+                    onChange={e => setSlideCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    className="w-24 bg-slate-700 border-slate-600 text-white"
+                  />
+                  <span className="text-xs text-slate-500">(1–10)</span>
                 </div>
               </div>
               <div className="flex items-center gap-3 pt-2">
@@ -383,7 +432,12 @@ export default function Page() {
                 {slides.map((s, i) => (
                   <div
                     key={i}
-                    className="border border-slate-600 rounded-lg overflow-hidden hover:border-violet-500/50 transition-colors"
+                    className={`border border-slate-600 rounded-lg overflow-hidden hover:border-violet-500/50 transition-colors ${
+                      isCapturingForModal ? "cursor-wait" : "cursor-pointer"
+                    }`}
+                    role="button"
+                    aria-label={`Open slide ${i + 1}`}
+                    onClick={() => !isCapturingForModal && openModal(i)}
                   >
                     <div
                       className="relative bg-black overflow-hidden"
@@ -447,6 +501,82 @@ export default function Page() {
           </div>
         </section>
       </main>
+
+      {isModalOpen && activeModalIndex !== null && modalImageUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeModal}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-3">
+                <h3 className="text-white text-lg font-medium">Slide {activeModalIndex + 1}</h3>
+                <span className="text-slate-400 text-sm">1080×1920</span>
+              </div>
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 rounded-lg bg-slate-800/80 backdrop-blur text-white border border-slate-600 hover:bg-slate-700/80 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            <div className="rounded-xl border border-slate-600 bg-slate-900/50 backdrop-blur shadow-2xl overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={modalImageUrl}
+                alt={`Slide ${activeModalIndex + 1}`}
+                className="block max-w-full max-h-[80vh] w-auto h-auto object-contain"
+                style={{ aspectRatio: "1080/1920" }}
+              />
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <Input
+                placeholder="Describe how to edit this slide..."
+                value={editPrompt}
+                onChange={e => setEditPrompt(e.target.value)}
+                className="flex-1 bg-slate-700 border-slate-600 text-white"
+              />
+              <Button
+                disabled={!editPrompt.trim()}
+                onClick={async () => {
+                  try {
+                    const slideHtml = slides[activeModalIndex!] || "";
+                    const res = await fetch("/api/edit-slide", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ slideHtml, instruction: editPrompt, direction }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data?.error || "Failed to edit slide");
+                    const updated = String(data.html || "");
+                    const nextSlides = [...slides];
+                    nextSlides[activeModalIndex!] = updated;
+                    setHtmlContent(nextSlides.join("\n\n---\n\n"));
+                    setEditPrompt("");
+                    // recapture after slight delay to allow iframe render
+                    setTimeout(async () => {
+                      const handle = slideRefs.current[activeModalIndex!];
+                      if (handle) {
+                        const url = await handle.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
+                        setModalImageUrl(url);
+                      }
+                    }, 250);
+                    toast.success("Slide updated");
+                  } catch (e: any) {
+                    console.error(e);
+                    toast.error(e?.message || "Edit failed");
+                  }
+                }}
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                Apply Edit
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="border-t border-slate-700 py-8 mt-12">
         <div className="container mx-auto text-center">
