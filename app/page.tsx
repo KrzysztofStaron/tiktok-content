@@ -31,6 +31,23 @@ export default function Page() {
   const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const [exportPreviews, setExportPreviews] = useState<string[]>([]);
 
+  // Ensure iframe content is fully laid out (fonts/styles) before rasterizing
+  const waitForIframeReady = async (iframe: HTMLIFrameElement) => {
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+    if (!doc || !win) return;
+    // wait for fonts if supported
+    // @ts-ignore
+    if (doc.fonts && typeof doc.fonts.ready?.then === "function") {
+      try {
+        // @ts-ignore
+        await doc.fonts.ready;
+      } catch {}
+    }
+    await new Promise<void>(r => win.requestAnimationFrame(() => r()));
+    await new Promise<void>(r => win.requestAnimationFrame(() => r()));
+  };
+
   const slides = useMemo(() => {
     return htmlContent
       .split(/\n\s*---\s*\n/gm)
@@ -62,11 +79,9 @@ export default function Page() {
           throw new Error("Could not access iframe content");
         }
 
+        await waitForIframeReady(iframe);
         // Export the exact same DOM root as preview (html element)
         const rootEl = iframe.contentDocument.documentElement;
-        // Ensure export CSS matches preview by removing any scrolling offset
-        rootEl.style.margin = "0";
-        rootEl.style.padding = "0";
         // Ensure no transparent sampling on edges
         const dataUrl = await toPng(rootEl, {
           width: 1080,
@@ -75,11 +90,6 @@ export default function Page() {
           cacheBust: true,
           // Avoid font embedding differences
           skipFonts: true,
-          backgroundColor: "#000000",
-          style: {
-            margin: "0",
-            padding: "0",
-          },
         });
         const base64 = dataUrl.split(",")[1];
         const index = (i + 1).toString().padStart(2, "0");
@@ -109,6 +119,7 @@ export default function Page() {
         if (!node) continue;
         const iframe = node.querySelector("iframe") as HTMLIFrameElement | null;
         if (!iframe || !iframe.contentDocument) continue;
+        await waitForIframeReady(iframe);
         const rootEl = iframe.contentDocument.documentElement;
         rootEl.style.margin = "0";
         rootEl.style.padding = "0";

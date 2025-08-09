@@ -23,6 +23,9 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
         <html>
         <head>
           <meta charset="utf-8">
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap" rel="stylesheet">
           <style>
             html, body {
               width: 1080px;
@@ -37,9 +40,9 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
             }
             
             html {
-              background: black;
-              color: white;
-              font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              background: #000000;
+              color: #ffffff;
+              font-family: 'TikTok Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             }
 
             body {
@@ -54,76 +57,82 @@ export const SlideRenderer = forwardRef<HTMLDivElement, SlideRendererProps>(({ h
             
             h1 {
               font-size: 64px;
-              font-weight: bold;
-              margin-bottom: 2rem;
+              font-weight: 750;
+              margin-bottom: 24px;
               line-height: 1.1;
-              background: linear-gradient(45deg, #8b5cf6, #ec4899);
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-              background-clip: text;
+              color: #f8fafc;
+              white-space: nowrap;
+              word-break: keep-all;
+              overflow-wrap: normal;
             }
             
             h2 {
               font-size: 48px;
-              font-weight: 600;
-              margin-bottom: 1.5rem;
+              font-weight: 700;
+              margin-bottom: 20px;
               line-height: 1.2;
-              color: #fbbf24;
+              color: #e5e7eb;
+              white-space: nowrap;
+              word-break: keep-all;
+              overflow-wrap: normal;
             }
             
             h3 {
               font-size: 40px;
-              font-weight: 600;
-              margin-bottom: 1rem;
+              font-weight: 650;
+              margin-bottom: 16px;
               line-height: 1.3;
-              color: #34d399;
+              color: #e2e8f0;
+              white-space: nowrap;
+              word-break: keep-all;
+              overflow-wrap: normal;
             }
             
             p {
               font-size: 32px;
               line-height: 1.4;
-              color: #d1d5db;
-              margin-bottom: 1rem;
+              color: #cbd5e1;
+              margin-bottom: 12px;
+              white-space: nowrap;
+              word-break: keep-all;
+              overflow-wrap: normal;
             }
             
             strong {
-              color: #f472b6;
-              font-weight: 700;
+              color: #fe2c55;
+              font-weight: 800;
+              white-space: nowrap;
             }
             
             em {
-              color: #a78bfa;
+              color: #f59e0b;
               font-style: italic;
             }
             
             .highlight {
-              background: linear-gradient(45deg, #10b981, #3b82f6);
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-              background-clip: text;
-              font-weight: bold;
+              color: #fe2c55;
+              font-weight: 850;
+              white-space: nowrap;
             }
             
             .image-placeholder {
-              width: 600px;
-              height: 300px;
-              background: linear-gradient(135deg, #374151, #6b7280);
-              border: 3px solid #9ca3af;
-              border-radius: 16px;
-              margin: 2rem auto;
+              width: 640px;
+              height: 320px;
+              background: rgba(255,255,255,0.06);
+              border: 1px solid rgba(255,255,255,0.18);
+              border-radius: 12px;
+              margin: 24px auto;
               display: flex;
               align-items: center;
               justify-content: center;
-              color: #d1d5db;
-              font-size: 1.5rem;
+              color: #e5e7eb;
+              font-size: 22px;
             }
             
             .cta {
-              background: linear-gradient(45deg, #f59e0b, #ef4444);
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-              background-clip: text;
-              font-weight: bold;
+              color: #fe2c55;
+              font-weight: 850;
+              white-space: nowrap;
             }
           </style>
         </head>
