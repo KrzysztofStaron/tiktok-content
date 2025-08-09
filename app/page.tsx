@@ -4,42 +4,24 @@ import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { SlideHTML } from "@/components/SlideHTML";
+import { SlideRenderer } from "@/components/SlideRenderer";
 import { toPng } from "html-to-image";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
 
-const DEFAULT_HTML = `<div style="text-align: center; padding: 40px; color: white; font-family: system-ui, -apple-system, sans-serif;">
-  <h1 style="font-size: 4rem; font-weight: bold; background: linear-gradient(45deg, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem;">
-    Hook your audience in <strong>3 seconds</strong>
-  </h1>
-  <p style="font-size: 2rem; color: #d1d5db; line-height: 1.4;">
-    Write a <em style="color: #a78bfa;">bold claim</em> and a <strong style="color: #f472b6;">short supporting</strong> line.
-  </p>
-</div>
+const DEFAULT_HTML = `<h1>Hook your audience in <span class="highlight">3 seconds</span></h1>
+<p>Write a <em>bold claim</em> and a <strong>short supporting</strong> line.</p>
 
 ---
 
-<div style="text-align: center; padding: 40px; color: white; font-family: system-ui, -apple-system, sans-serif;">
-  <h1 style="font-size: 4rem; font-weight: bold; color: #fbbf24; margin-bottom: 2rem;">
-    Show, don't tell
-  </h1>
-  <div style="width: 600px; height: 300px; background: linear-gradient(135deg, #374151, #6b7280); border: 3px solid #9ca3af; border-radius: 16px; margin: 2rem auto; display: flex; align-items: center; justify-content: center; color: #d1d5db; font-size: 1.5rem;">
-    💻 Laptop mockup visualization
-  </div>
-</div>
+<h2>Show, don't tell</h2>
+<div class="image-placeholder">💻 Laptop mockup visualization</div>
 
 ---
 
-<div style="text-align: center; padding: 40px; color: white; font-family: system-ui, -apple-system, sans-serif;">
-  <h1 style="font-size: 4rem; font-weight: bold; background: linear-gradient(45deg, #10b981, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem;">
-    End with a <strong>clear CTA</strong>
-  </h1>
-  <p style="font-size: 2rem; color: #d1d5db; line-height: 1.4;">
-    Add your <em style="color: #34d399;">call to action</em> and a <strong style="color: #60a5fa;">link or handle</strong>.
-  </p>
-</div>`;
+<h1>End with a <span class="cta">clear CTA</span></h1>
+<p>Add your <em>call to action</em> and a <strong>link or handle</strong>.</p>`;
 
 export default function Page() {
   const [htmlContent, setHtmlContent] = useState<string>(DEFAULT_HTML);
@@ -72,13 +54,30 @@ export default function Page() {
       const node = slideRefs.current[i];
       if (!node) continue;
       try {
-        const dataUrl = await toPng(node, {
+        // Find the iframe inside the node
+        const iframe = node.querySelector("iframe") as HTMLIFrameElement;
+        if (!iframe || !iframe.contentDocument) {
+          throw new Error("Could not access iframe content");
+        }
+
+        // Export the exact same DOM root as preview (html element)
+        const rootEl = iframe.contentDocument.documentElement;
+        // Ensure export CSS matches preview by removing any scrolling offset
+        rootEl.style.margin = "0";
+        rootEl.style.padding = "0";
+        // Ensure no transparent sampling on edges
+        const dataUrl = await toPng(rootEl, {
           width: 1080,
           height: 1920,
           pixelRatio: 1,
           cacheBust: true,
-          skipFonts: false,
+          // Avoid font embedding differences
+          skipFonts: true,
           backgroundColor: "#000000",
+          style: {
+            margin: "0",
+            padding: "0",
+          },
         });
         const base64 = dataUrl.split(",")[1];
         const index = (i + 1).toString().padStart(2, "0");
@@ -210,11 +209,11 @@ export default function Page() {
                 value={htmlContent}
                 onChange={e => setHtmlContent(e.target.value)}
                 className="min-h-[420px] bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus:border-violet-500 focus:ring-violet-500 font-mono text-sm"
-                placeholder="<div>Your HTML content here...</div>\n\n---\n\n<div>Next slide</div>"
+                placeholder="<h1>Slide title</h1>\n<p>Your content here...</p>\n\n---\n\n<h2>Next slide</h2>"
               />
               <p className="text-xs text-slate-400">
-                💡 <strong>Tip:</strong> Use full HTML with inline CSS for rich formatting, gradients, and modern
-                styling.
+                💡 <strong>Tip:</strong> Use semantic HTML (h1, h2, p, strong, em). Special classes: "highlight", "cta",
+                "image-placeholder".
               </p>
             </div>
           </div>
@@ -246,7 +245,7 @@ export default function Page() {
                         height: 1920 * scale,
                       }}
                     >
-                      <SlideHTML
+                      <SlideRenderer
                         html={s}
                         ref={el => {
                           slideRefs.current[i] = el;

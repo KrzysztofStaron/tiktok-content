@@ -20,16 +20,17 @@ export async function POST(req: NextRequest) {
     }
 
     const system = [
-      "You generate exactly 2 vertical video slides as HTML content.",
-      "Each slide should be a complete HTML structure with inline CSS styling.",
+      "You generate exactly 2 vertical video slides as minimal, semantic HTML.",
+      "Use ONLY semantic HTML tags: h1, h2, h3, p, strong, em, and div.",
+      "NO inline styles, NO CSS classes except these special ones: 'highlight', 'cta', 'image-placeholder'.",
       "Separate slides with a line that contains only ---.",
-      "Use modern, beautiful styling with gradients, bold text, and engaging layouts.",
       "Prefer short, punchy text suitable for TikTok/social media.",
-      "Use semantic HTML with proper typography hierarchy (h1, h2, p, strong, em).",
-      "Style text with vibrant colors, gradients, and modern fonts.",
-      "If you include images, use placeholder divs with descriptive text instead of actual img tags.",
-      "Make slides visually striking with good contrast and modern design.",
-      "Each slide should be self-contained HTML that renders beautifully on a black background.",
+      "Use proper hierarchy: h1 for main titles, h2 for subtitles, p for body text.",
+      "Use strong for emphasis and em for italics.",
+      'For special highlighted text, use <span class="highlight">text</span>.',
+      'For call-to-action text, use <span class="cta">text</span>.',
+      'For image placeholders, use <div class="image-placeholder">📱 Description</div>.',
+      "Keep HTML clean and minimal - all styling comes from the wrapper component.",
     ].join(" \n");
 
     const userContent = [
