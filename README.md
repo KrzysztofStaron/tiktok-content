@@ -31,7 +31,10 @@ Generate and iterate vertical TikTok slideshow slides (1080×1920) with AI. Expo
 Create `.env.local` in the project root:
 
 ```bash
+OPENROUTER_API_KEY=
 OPENROUTER_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here
+
 ```
 
 ### Install & Run
