@@ -38,6 +38,76 @@ export default function Page() {
   const [modalImageUrl, setModalImageUrl] = useState<string>("");
   const [isCapturingForModal, setIsCapturingForModal] = useState<boolean>(false);
   const [isEditingSlide, setIsEditingSlide] = useState<boolean>(false);
+  const recaptureTimeoutRef = useRef<number | null>(null);
+  type HistoryEntry = { id: string; html: string; prompt?: string; label?: string; timestamp: number };
+  const [slideHistories, setSlideHistories] = useState<Record<number, HistoryEntry[]>>({});
+
+  const generateId = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  const truncateLabel = (text?: string, max = 40) => {
+    const s = (text || "").trim();
+    if (!s) return "Edit";
+    return s.length > max ? s.slice(0, max - 1) + "…" : s;
+  };
+
+  const initHistory = (index: number, currentSlides: string[]) => {
+    setSlideHistories(prev => {
+      const current = prev[index] || [];
+      const currentHtml = currentSlides[index] || "";
+      if (current.length === 0) {
+        return {
+          ...prev,
+          [index]: [{ id: generateId(), html: currentHtml, timestamp: Date.now(), label: "Initial" }],
+        };
+      }
+      return prev;
+    });
+  };
+
+  const addHistory = (index: number, html: string, prompt?: string, label?: string) => {
+    setSlideHistories(prev => {
+      const list = prev[index] || [];
+      const next = [
+        ...list,
+        { id: generateId(), html, prompt, label: label || truncateLabel(prompt), timestamp: Date.now() },
+      ];
+      // keep last 20
+      return { ...prev, [index]: next.slice(-20) };
+    });
+  };
+
+  // Persist history to localStorage
+  useEffect(() => {
+    try {
+      const payload = JSON.stringify(slideHistories);
+      localStorage.setItem("tiktok-slide-histories", payload);
+    } catch {}
+  }, [slideHistories]);
+
+  // Load persisted history on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("tiktok-slide-histories");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          setSlideHistories(parsed as Record<number, HistoryEntry[]>);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Ensure each visible slide has an initial baseline in history (after slides computed)
+  useEffect(() => {
+    // Defer to end of event loop so 'slides' is definitely initialized
+    const t = setTimeout(() => {
+      const currentSlides = htmlContent.split(/\n\s*---\s*\n/gm);
+      currentSlides.forEach((_, i) => initHistory(i, currentSlides));
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [htmlContent]);
 
   // Ensure iframe content is fully laid out (fonts/styles) before rasterizing
   const waitForIframeReady = async (iframe: HTMLIFrameElement) => {
@@ -157,11 +227,42 @@ export default function Page() {
     }
   };
 
+  // Debounced recapture of the modal image when the underlying slide content changes
+  const requestModalRecapture = (index: number, delay = 200) => {
+    if (!isModalOpen || activeModalIndex !== index) return;
+    if (recaptureTimeoutRef.current) {
+      window.clearTimeout(recaptureTimeoutRef.current);
+    }
+    recaptureTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        setIsCapturingForModal(true);
+        const handle = slideRefs.current[index];
+        if (handle) {
+          const url = await handle.capturePng({ width: 1080, height: 1920, engine: "html2canvas" });
+          setModalImageUrl(url);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsCapturingForModal(false);
+      }
+    }, delay) as unknown as number;
+  };
+
+  // React to global html changes while a modal is open
+  useEffect(() => {
+    if (isModalOpen && activeModalIndex !== null) {
+      requestModalRecapture(activeModalIndex, 250);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [htmlContent]);
+
   // Modal helpers
   const openModal = async (index: number) => {
     setActiveModalIndex(index);
     setModalImageUrl("");
     setIsModalOpen(true); // open immediately for instant feedback
+    initHistory(index, slides);
     setIsCapturingForModal(true);
     try {
       const handle = slideRefs.current[index];
@@ -450,6 +551,7 @@ export default function Page() {
                     >
                       <SlideRenderer
                         html={s}
+                        onContentChanged={() => requestModalRecapture(i)}
                         ref={instance => {
                           slideRefs.current[i] = instance;
                         }}
@@ -583,10 +685,28 @@ export default function Page() {
                   try {
                     setIsEditingSlide(true);
                     const slideHtml = slides[activeModalIndex!] || "";
+                    // Collect current inline images as context
+                    let images: { src: string; alt?: string; prompt?: string }[] = [];
+                    const handle = slideRefs.current[activeModalIndex!];
+                    const iframe = handle?.getIframe();
+                    const doc = iframe?.contentDocument || null;
+                    if (doc) {
+                      const containers = Array.from(doc.querySelectorAll(".ai-image")) as HTMLElement[];
+                      for (const el of containers) {
+                        const img = el.querySelector("img") as HTMLImageElement | null;
+                        if (img && img.src?.startsWith("data:")) {
+                          images.push({
+                            src: img.src,
+                            alt: img.alt || undefined,
+                            prompt: el.getAttribute("data-prompt") || undefined,
+                          });
+                        }
+                      }
+                    }
                     const res = await fetch("/api/edit-slide", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ slideHtml, instruction: editPrompt, direction }),
+                      body: JSON.stringify({ slideHtml, instruction: editPrompt, direction, images }),
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data?.error || "Failed to edit slide");
@@ -594,6 +714,7 @@ export default function Page() {
                     const nextSlides = [...slides];
                     nextSlides[activeModalIndex!] = updated;
                     setHtmlContent(nextSlides.join("\n\n---\n\n"));
+                    addHistory(activeModalIndex!, updated, editPrompt, "Edit");
                     setEditPrompt("");
                     // recapture after slight delay to allow iframe render
                     setTimeout(async () => {
@@ -616,6 +737,57 @@ export default function Page() {
                 {isEditingSlide ? "Applying…" : "Apply Edit"}
               </Button>
             </div>
+            {/* History */}
+            {activeModalIndex !== null && (slideHistories[activeModalIndex]?.length || 0) > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-slate-300 text-sm font-medium">History</h4>
+                  <span className="text-slate-500 text-xs">{slideHistories[activeModalIndex]!.length} versions</span>
+                </div>
+                <div className="max-h-48 overflow-auto rounded-md border border-slate-700 divide-y divide-slate-700 bg-slate-900/50">
+                  {slideHistories[activeModalIndex]!.map((entry, idx) => ({ entry, idx }))
+                    .reverse()
+                    .map(({ entry, idx }) => (
+                      <div key={entry.id} className="flex items-center justify-between px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-slate-200 text-xs font-medium truncate">
+                            {entry.label || `v${idx + 1}`}
+                          </div>
+                          <div className="text-slate-500 text-[10px] truncate">
+                            {new Date(entry.timestamp).toLocaleTimeString()} {entry.prompt ? `• ${entry.prompt}` : ""}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-slate-700 hover:bg-slate-600 text-white px-2 py-1"
+                            onClick={async () => {
+                              const index = activeModalIndex!;
+                              const versionHtml = entry.html;
+                              const nextSlides = [...slides];
+                              nextSlides[index] = versionHtml;
+                              setHtmlContent(nextSlides.join("\n\n---\n\n"));
+                              setTimeout(async () => {
+                                const handle = slideRefs.current[index];
+                                if (handle) {
+                                  const url = await handle.capturePng({
+                                    width: 1080,
+                                    height: 1920,
+                                    engine: "html2canvas",
+                                  });
+                                  setModalImageUrl(url);
+                                }
+                              }, 250);
+                            }}
+                          >
+                            Restore
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
