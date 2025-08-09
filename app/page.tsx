@@ -391,19 +391,19 @@ export default function Page() {
   const scale = 0.25;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      <header className="sticky top-0 z-10 border-b border-slate-700 bg-slate-900/90 backdrop-blur">
+    <div className="min-h-screen bg-zinc-900 text-white">
+      <header className="sticky top-0 z-10 border-b border-zinc-700 bg-zinc-900/90 backdrop-blur">
         <div className="container mx-auto flex items-center justify-between py-6">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-red-400 via-white to-sky-400 bg-clip-text text-transparent">
               TikTok Slideshow Generator
             </h1>
-            <p className="text-slate-400 mt-1">Generate AI-powered slides • Markdown → 1080x1920 export</p>
+            <p className="text-zinc-400 mt-1">Generate AI-powered slides • Markdown → 1080x1920 export</p>
           </div>
           <div className="flex gap-3">
             <Button
               onClick={handleExportAll}
-              className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white border-0"
+              className="bg-gradient-to-r from-red-600 to-sky-600 hover:from-red-700 hover:to-sky-700 text-white border-0"
             >
               Export ZIP
             </Button>
@@ -411,7 +411,7 @@ export default function Page() {
               variant="outline"
               onClick={handlePreviewExports}
               disabled={isPreviewing}
-              className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+              className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
             >
               {isPreviewing ? "Previewing…" : "Dev: Preview PNGs"}
             </Button>
@@ -421,9 +421,9 @@ export default function Page() {
 
       <main className="container mx-auto grid grid-cols-1 gap-8 py-8 lg:grid-cols-5">
         <section className="lg:col-span-2 space-y-8">
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700 rounded-xl p-6">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-violet-400 rounded-full"></span>
+              <span className="w-2 h-2 bg-sky-400 rounded-full"></span>
               AI Generation
             </h2>
             <div className="grid grid-cols-1 gap-4">
@@ -436,7 +436,7 @@ export default function Page() {
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   placeholder="e.g., 2 reasons to switch to TypeScript"
-                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus:border-violet-500 focus:ring-violet-500"
+                  className="bg-zinc-800 border-zinc-600 text-white placeholder:text-zinc-400 focus:border-sky-500 focus:ring-sky-500"
                 />
               </div>
               <div className="space-y-2">
@@ -448,7 +448,7 @@ export default function Page() {
                   value={direction}
                   onChange={e => setDirection(e.target.value)}
                   placeholder="e.g., witty, Gen-Z tone, suspenseful ending"
-                  className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus:border-violet-500 focus:ring-violet-500"
+                  className="bg-zinc-800 border-zinc-600 text-white placeholder:text-zinc-400 focus:border-sky-500 focus:ring-sky-500"
                 />
               </div>
               <div className="space-y-2">
@@ -463,23 +463,23 @@ export default function Page() {
                     max={10}
                     value={slideCount}
                     onChange={e => setSlideCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
-                    className="w-24 bg-slate-700 border-slate-600 text-white"
+                    className="w-24 bg-zinc-800 border-zinc-600 text-white"
                   />
-                  <span className="text-xs text-slate-500">(1–10)</span>
+                  <span className="text-xs text-zinc-500">(1–10)</span>
                 </div>
               </div>
               <div className="flex items-center gap-3 pt-2">
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-white border-0 flex-1"
+                  className="bg-gradient-to-r from-red-600 to-sky-600 hover:from-red-700 hover:to-sky-700 text-white border-0 flex-1"
                 >
-                  {isGenerating ? "Generating…" : "✨ Generate 2 slides"}
+                  {isGenerating ? "Generating…" : "Go viral!"}
                 </Button>
                 <Button
                   onClick={handleImprove}
                   disabled={isImproving || slides.length === 0}
-                  className="bg-slate-700 hover:bg-slate-600 text-white border-0"
+                  className="bg-zinc-700 hover:bg-zinc-600 text-white border-0"
                 >
                   {isImproving ? "Improving…" : "🪄 Improve with images"}
                 </Button>
@@ -489,7 +489,7 @@ export default function Page() {
                     setPrompt("");
                     setDirection("");
                   }}
-                  className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                  className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
                 >
                   Clear
                 </Button>
@@ -497,9 +497,9 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700 rounded-xl p-6">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-pink-400 rounded-full"></span>
+              <span className="w-2 h-2 bg-red-400 rounded-full"></span>
               HTML Editor
             </h2>
             <div className="space-y-3">
@@ -507,10 +507,10 @@ export default function Page() {
                 id="html"
                 value={htmlContent}
                 onChange={e => setHtmlContent(e.target.value)}
-                className="min-h-[420px] bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus:border-violet-500 focus:ring-violet-500 font-mono text-sm"
+                className="min-h-[420px] bg-zinc-800 border-zinc-600 text-white placeholder:text-zinc-400 focus:border-sky-500 focus:ring-sky-500 font-mono text-sm"
                 placeholder="<h1>Slide title</h1>\n<p>Your content here...</p>\n\n---\n\n<h2>Next slide</h2>"
               />
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-zinc-400">
                 💡 <strong>Tip:</strong> Use semantic HTML (h1, h2, p, strong, em). Special classes: "highlight", "cta",
                 "image-placeholder".
               </p>
@@ -519,23 +519,23 @@ export default function Page() {
         </section>
 
         <section className="lg:col-span-3">
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700 rounded-xl p-6">
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700 rounded-xl p-6">
             <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+              <span className="w-2 h-2 bg-sky-400 rounded-full"></span>
               Preview ({slides.length} slide{slides.length !== 1 ? "s" : ""})
             </h2>
             {slides.length === 0 ? (
-              <div className="rounded-xl border border-slate-600 bg-slate-700/30 p-12 text-center">
-                <div className="text-slate-400 text-lg mb-2">🎬</div>
-                <p className="text-slate-400">Your slides preview will appear here</p>
-                <p className="text-slate-500 text-sm mt-1">Generate with AI or write HTML manually</p>
+              <div className="rounded-xl border border-zinc-600 bg-zinc-700/30 p-12 text-center">
+                <div className="text-zinc-400 text-lg mb-2">🎬</div>
+                <p className="text-zinc-400">Your slides preview will appear here</p>
+                <p className="text-zinc-500 text-sm mt-1">Generate with AI or write HTML manually</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {slides.map((s, i) => (
                   <div
                     key={i}
-                    className={`border border-slate-600 rounded-lg overflow-hidden hover:border-violet-500/50 transition-colors ${
+                    className={`border border-zinc-600 rounded-lg overflow-hidden hover:border-sky-500/50 transition-colors ${
                       isCapturingForModal ? "cursor-wait" : "cursor-pointer"
                     }`}
                     role="button"
@@ -557,9 +557,9 @@ export default function Page() {
                         }}
                       />
                     </div>
-                    <div className="bg-slate-700/50 px-3 py-2 flex items-center justify-between">
-                      <span className="text-xs text-slate-400 font-medium">Slide {i + 1}</span>
-                      <span className="text-xs text-slate-500">1080×1920</span>
+                    <div className="bg-zinc-700/50 px-3 py-2 flex items-center justify-between">
+                      <span className="text-xs text-zinc-400 font-medium">Slide {i + 1}</span>
+                      <span className="text-xs text-zinc-500">1080×1920</span>
                     </div>
                   </div>
                 ))}
@@ -568,7 +568,7 @@ export default function Page() {
             {exportPreviews.length > 0 && (
               <div className="mt-8">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-slate-300">
+                  <h3 className="text-sm font-medium text-zinc-300">
                     Dev: Exported PNG previews ({exportPreviews.length})
                   </h3>
                   <div className="flex gap-2">
@@ -576,7 +576,7 @@ export default function Page() {
                       variant="outline"
                       size="sm"
                       onClick={() => setExportPreviews([])}
-                      className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                      className="border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
                     >
                       Clear
                     </Button>
@@ -586,7 +586,7 @@ export default function Page() {
                   {exportPreviews.map((url, i) => (
                     <div
                       key={i}
-                      className="border border-slate-600 rounded-lg overflow-hidden bg-black flex items-center justify-center"
+                      className="border border-zinc-600 rounded-lg overflow-hidden bg-black flex items-center justify-center"
                       style={{ width: 1080 * scale, height: 1920 * scale }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -792,12 +792,12 @@ export default function Page() {
         </div>
       )}
 
-      <footer className="border-t border-slate-700 py-8 mt-12">
+      <footer className="border-t border-zinc-700 py-8 mt-12">
         <div className="container mx-auto text-center">
-          <p className="text-slate-400 text-sm">
+          <p className="text-zinc-400 text-sm">
             1080×1920 export • Perfect for TikTok, YouTube Shorts, and Instagram Reels
           </p>
-          <p className="text-slate-500 text-xs mt-2">
+          <p className="text-zinc-500 text-xs mt-2">
             Powered by OpenRouter AI • HTML-to-Image rendering • Built with Next.js
           </p>
         </div>
