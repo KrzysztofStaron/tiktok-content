@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 You are to produce exactly ${desiredCount} TikTok slideshow slides for a vertical portrait video. Respond ONLY with a JSON object (no code fences) that conforms to this schema:
 
 type SlidesResponse = {
-  slides: { html: string }[]; // exactly 2 items
+  slides: { html: string }[]; // exactly ${desiredCount} items
 };
 
 Rules for slides[i].html:
@@ -110,9 +110,9 @@ Forbidden content:
     if (!parsed || !Array.isArray(parsed.slides)) {
       return NextResponse.json({ error: "JSON missing 'slides' array" }, { status: 502 });
     }
-    // Allow exactly 2 slides; if more, take first 2; if fewer, error
-    if (parsed.slides.length < 2) {
-      return NextResponse.json({ error: "Model returned fewer than 2 slides" }, { status: 502 });
+    // Enforce the requested number of slides
+    if (parsed.slides.length < desiredCount) {
+      return NextResponse.json({ error: `Model returned fewer than ${desiredCount} slides` }, { status: 502 });
     }
 
     const allowedTags = new Set(["h1", "h2", "h3", "p", "strong", "em", "div", "span"]);

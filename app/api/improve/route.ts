@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 You will receive the current slide HTML and small preview images that were rendered from earlier AI prompts. Improve the slides while respecting the constraints below. These are TikTok slideshow slides in vertical portrait orientation (1080x1920). Respond ONLY with a JSON object of this TypeScript type (no code fences). You must return exactly ${desiredCount} slides:
 
 type SlidesResponse = {
-  slides: { html: string }[]; // same length as input slides (or 2 if unspecified)
+  slides: { html: string }[]; // exactly ${desiredCount} items
 };
 
 Rules for slides[i].html:

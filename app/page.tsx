@@ -222,7 +222,7 @@ export default function Page() {
       const html = String(data.html || "").trim();
       if (!html) throw new Error("Empty response from model");
       setHtmlContent(html);
-      toast.success("Generated 2 slides");
+      toast.success(`Generated ${slideCount} slide${slideCount !== 1 ? "s" : ""}`);
       setHasRunOnce(true);
     } catch (e: any) {
       console.error(e);
