@@ -28,6 +28,7 @@ export default function Page() {
   const [prompt, setPrompt] = useState<string>("2 reasons to switch to TypeScript");
   const [direction, setDirection] = useState<string>("");
   const [slideCount, setSlideCount] = useState<number>(2);
+  const [slideCountText, setSlideCountText] = useState<string>("2");
   const [editPrompt, setEditPrompt] = useState<string>("");
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -210,10 +211,14 @@ export default function Page() {
     }
     try {
       setIsGenerating(true);
+      const desiredCount = Math.min(
+        10,
+        Math.max(1, Number.isFinite(Number(slideCountText)) ? Number(slideCountText) : slideCount)
+      );
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, direction, slideCount }),
+        body: JSON.stringify({ prompt, direction, slideCount: desiredCount }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -222,7 +227,7 @@ export default function Page() {
       const html = String(data.html || "").trim();
       if (!html) throw new Error("Empty response from model");
       setHtmlContent(html);
-      toast.success(`Generated ${slideCount} slide${slideCount !== 1 ? "s" : ""}`);
+      toast.success(`Generated ${desiredCount} slide${desiredCount !== 1 ? "s" : ""}`);
       setHasRunOnce(true);
     } catch (e: any) {
       console.error(e);
@@ -474,10 +479,14 @@ export default function Page() {
         }
       }
 
+      const desiredCount = Math.min(
+        10,
+        Math.max(1, Number.isFinite(Number(slideCountText)) ? Number(slideCountText) : slideCount)
+      );
       const res = await fetch("/api/improve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slides, images, direction, prompt, slideCount }),
+        body: JSON.stringify({ slides, images, direction, prompt, slideCount: desiredCount }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -580,8 +589,14 @@ export default function Page() {
                     type="number"
                     min={1}
                     max={10}
-                    value={slideCount}
-                    onChange={e => setSlideCount(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    value={slideCountText}
+                    onChange={e => setSlideCountText(e.target.value)}
+                    onBlur={() => {
+                      const n = Number(slideCountText);
+                      const clamped = Math.min(10, Math.max(1, Number.isFinite(n) ? n : 2));
+                      setSlideCount(clamped);
+                      setSlideCountText(String(clamped));
+                    }}
                     className="w-24 bg-zinc-800 border-zinc-600 text-white"
                   />
                   <span className="text-xs text-zinc-500">(1–10)</span>
